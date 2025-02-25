@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - Tree (Optimized)</title>
+  <title>Bitcoin Flow - Non-Recursive</title>
   <style>
     html, body {
       margin: 0;
@@ -128,12 +128,12 @@
   <div id="error" style="display: none;"></div>
   
   <div id="controls" style="display: none;">
-    <label for="limit-slider">Number of transactions: <span id="limit-value">1000</span></label>
+    <label for="limit-slider">Transactions: <span id="limit-value">1000</span></label>
     <input type="range" id="limit-slider" min="100" max="10000" step="100" value="1000">
-    <button id="redraw">Redraw with limit</button>
-    <button id="center">Center View</button>
-    <button id="zoom-in">Zoom In</button>
-    <button id="zoom-out">Zoom Out</button>
+    <button id="redraw">Redraw</button>
+    <button id="center">Center</button>
+    <button id="zoom-in">+</button>
+    <button id="zoom-out">-</button>
   </div>
   
   <div id="chart-container"></div>
@@ -351,69 +351,84 @@
       // Use only a subset for performance
       const limitedLinks = links.slice(0, limit);
       
-      // Extract all unique nodes
-      const nodesSet = new Set();
+      // Extract all unique wallets
+      const uniqueWallets = new Set();
       limitedLinks.forEach(link => {
-        nodesSet.add(link.source);
-        nodesSet.add(link.target);
+        uniqueWallets.add(link.source);
+        uniqueWallets.add(link.target);
       });
       
-      // Create nodes array
-      const nodes = Array.from(nodesSet).map(id => ({ id }));
+      // Create graph structure for efficient traversal
+      const walletsMap = new Map();
       
-      // Identify the levels of each node
-      const nodeLevels = {};
-      const sourcesOnly = new Set();  // Nodes that are only sources (initial nodes)
-      const targetsOnly = new Set();  // Nodes that are only targets (end nodes)
+      // Initialize all wallets
+      uniqueWallets.forEach(wallet => {
+        walletsMap.set(wallet, {
+          id: wallet,
+          outgoing: new Set(),
+          incoming: new Set(),
+          level: undefined
+        });
+      });
       
-      // Get all sources and targets
+      // Populate connections
       limitedLinks.forEach(link => {
-        sourcesOnly.add(link.source);
-        targetsOnly.add(link.target);
+        const sourceWallet = walletsMap.get(link.source);
+        const targetWallet = walletsMap.get(link.target);
+        
+        sourceWallet.outgoing.add(link.target);
+        targetWallet.incoming.add(link.source);
       });
       
-      // Remove from sourcesOnly if also a target
-      limitedLinks.forEach(link => {
-        if (targetsOnly.has(link.source)) {
-          sourcesOnly.delete(link.source);
-        }
+      // Find starting wallets (those with no incoming transactions)
+      const startWallets = Array.from(walletsMap.values()).filter(w => w.incoming.size === 0);
+      
+      // Assign levels using BFS (non-recursive)
+      const walletArray = Array.from(walletsMap.values());
+      
+      // First pass: Assign level 0 to starting wallets
+      startWallets.forEach(wallet => {
+        wallet.level = 0;
       });
       
-      // Assign levels starting from source-only nodes
-      sourcesOnly.forEach(source => {
-        nodeLevels[source] = 0;
-        assignLevels(source, 0);
-      });
+      // Second pass: Use BFS to assign levels to all other wallets
+      let changed = true;
+      let iterations = 0;
+      const MAX_ITERATIONS = 100; // Safety limit
       
-      function assignLevels(nodeId, level) {
-        const outgoingLinks = limitedLinks.filter(link => link.source === nodeId);
-        outgoingLinks.forEach(link => {
-          // If target has no level yet, or current path gives a higher level
-          if (nodeLevels[link.target] === undefined || nodeLevels[link.target] < level + 1) {
-            nodeLevels[link.target] = level + 1;
-            assignLevels(link.target, level + 1);
-          }
+      while (changed && iterations < MAX_ITERATIONS) {
+        changed = false;
+        iterations++;
+        
+        walletArray.forEach(wallet => {
+          // For each wallet with incoming connections
+          wallet.incoming.forEach(sourceId => {
+            const sourceWallet = walletsMap.get(sourceId);
+            
+            // If source has a level and this wallet doesn't, or could be at a higher level
+            if (sourceWallet.level !== undefined) {
+              const newLevel = sourceWallet.level + 1;
+              
+              if (wallet.level === undefined || newLevel > wallet.level) {
+                wallet.level = newLevel;
+                changed = true;
+              }
+            }
+          });
         });
       }
       
-      // Fallback for nodes not assigned a level
-      nodes.forEach(node => {
-        if (nodeLevels[node.id] === undefined) {
-          nodeLevels[node.id] = 0; // Default to level 0
+      // Fallback for any wallets without a level
+      walletArray.forEach(wallet => {
+        if (wallet.level === undefined) {
+          if (wallet.incoming.size === 0) {
+            wallet.level = 0; // Source-only
+          } else if (wallet.outgoing.size === 0) {
+            wallet.level = iterations; // Target-only
+          } else {
+            wallet.level = 1; // Middle node
+          }
         }
-      });
-      
-      // Get max level for column width calculation
-      const maxLevel = Math.max(...Object.values(nodeLevels));
-      
-      // Group nodes by level
-      const nodesByLevel = {};
-      nodes.forEach(node => {
-        const level = nodeLevels[node.id];
-        if (!nodesByLevel[level]) {
-          nodesByLevel[level] = [];
-        }
-        nodesByLevel[level].push(node);
       });
       
       // Calculate container dimensions
@@ -421,22 +436,34 @@
       const width = container.clientWidth;
       const height = container.clientHeight;
       
+      // Find max level
+      const maxLevel = Math.max(...walletArray.map(w => w.level));
+      
+      // Group wallets by level
+      const walletsByLevel = {};
+      walletArray.forEach(wallet => {
+        if (!walletsByLevel[wallet.level]) {
+          walletsByLevel[wallet.level] = [];
+        }
+        walletsByLevel[wallet.level].push(wallet);
+      });
+      
       // Determine suitable canvas size based on data
       const virtualWidth = Math.max(width, (maxLevel + 1) * 300);
-      const maxNodesInAnyLevel = Math.max(...Object.values(nodesByLevel).map(n => n.length));
-      const virtualHeight = Math.max(height, maxNodesInAnyLevel * 40);
+      const maxWalletsInAnyLevel = Math.max(...Object.values(walletsByLevel).map(w => w.length));
+      const virtualHeight = Math.max(height, maxWalletsInAnyLevel * 30);
       
-      // Assign positions to nodes
-      const nodePositions = {};
+      // Assign positions to wallets
+      const walletPositions = {};
       const columnWidth = virtualWidth / (maxLevel + 2);
       
-      Object.entries(nodesByLevel).forEach(([level, nodesInLevel]) => {
+      Object.entries(walletsByLevel).forEach(([level, walletsInLevel]) => {
         const levelX = 150 + parseInt(level) * columnWidth;
         const levelHeight = virtualHeight - 200;
-        const rowSpacing = levelHeight / (nodesInLevel.length + 1);
+        const rowSpacing = levelHeight / (walletsInLevel.length + 1);
         
-        nodesInLevel.forEach((node, i) => {
-          nodePositions[node.id] = {
+        walletsInLevel.forEach((wallet, i) => {
+          walletPositions[wallet.id] = {
             x: levelX,
             y: 100 + (i + 1) * rowSpacing
           };
@@ -451,8 +478,8 @@
         .attr('class', 'link')
         .attr('d', d => {
           // Get positions
-          const sourcePos = nodePositions[d.source];
-          const targetPos = nodePositions[d.target];
+          const sourcePos = walletPositions[d.source];
+          const targetPos = walletPositions[d.target];
           
           if (!sourcePos || !targetPos) return '';
           
@@ -467,25 +494,25 @@
         .attr('stroke-width', d => Math.sqrt(d.amount || 1))
         .attr('fill', 'none');
       
-      // Draw the nodes (just minimal circles)
-      g.selectAll('.node-circle')
-        .data(nodes)
+      // Draw the wallets (just minimal circles)
+      g.selectAll('.wallet-circle')
+        .data(walletArray)
         .enter()
         .append('circle')
-        .attr('cx', d => nodePositions[d.id]?.x || 0)
-        .attr('cy', d => nodePositions[d.id]?.y || 0)
+        .attr('cx', d => walletPositions[d.id]?.x || 0)
+        .attr('cy', d => walletPositions[d.id]?.y || 0)
         .attr('r', 3)
         .attr('fill', '#fff');
       
-      // Draw node labels only for a reasonable number of nodes
-      if (nodes.length < 500) {
-        g.selectAll('.node-label')
-          .data(nodes)
+      // Draw wallet labels only for a reasonable number of wallets
+      if (uniqueWallets.size < 500) {
+        g.selectAll('.wallet-label')
+          .data(walletArray)
           .enter()
           .append('text')
           .attr('class', 'node')
-          .attr('x', d => nodePositions[d.id]?.x || 0)
-          .attr('y', d => nodePositions[d.id]?.y - 7 || 0)
+          .attr('x', d => walletPositions[d.id]?.x || 0)
+          .attr('y', d => walletPositions[d.id]?.y - 7 || 0)
           .attr('text-anchor', 'middle')
           .text(d => d.id)
           .attr('font-size', '10px');
@@ -509,7 +536,7 @@
         .attr('text-anchor', 'start')
         .attr('fill', 'rgba(255, 255, 255, 0.7)')
         .attr('font-size', '14px')
-        .text(`Showing ${limitedLinks.length} of ${allLinks.length} transactions (${nodes.length} wallets)`);
+        .text(`Showing ${limitedLinks.length} of ${allLinks.length} transactions (${uniqueWallets.size} wallets)`);
       
       // Center view
       centerView();
