@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - VERY Spread Out</title>
+  <title>Bitcoin Flow - FULL Dataset</title>
   <style>
     html, body {
       margin: 0;
@@ -28,7 +28,7 @@
     
     .link {
       stroke: #fff;
-      stroke-opacity: 0.2;
+      stroke-opacity: 0.15;
     }
     
     .node {
@@ -85,24 +85,30 @@
       position: fixed;
       top: 20px;
       right: 20px;
-      padding: 10px;
-      background-color: rgba(0, 0, 0, 0.7);
+      padding: 15px;
+      background-color: rgba(0, 0, 0, 0.8);
       border-radius: 4px;
       z-index: 100;
+      max-width: 300px;
     }
     
     button {
       background: #333;
       color: white;
       border: 1px solid #555;
-      padding: 5px 10px;
+      padding: 8px 12px;
       margin: 5px;
       border-radius: 3px;
       cursor: pointer;
+      font-size: 14px;
     }
     
     button:hover {
       background: #444;
+    }
+    
+    button:active {
+      background: #555;
     }
     
     #limit-slider {
@@ -112,7 +118,41 @@
     
     label {
       display: block;
-      margin: 5px 0;
+      margin: 8px 0;
+      font-size: 14px;
+    }
+    
+    input[type=number] {
+      width: 100px;
+      padding: 5px;
+      background: #333;
+      color: white;
+      border: 1px solid #555;
+      border-radius: 3px;
+    }
+    
+    .button-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    
+    .zoom-controls {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    
+    #status-message {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      padding: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      border-radius: 4px;
+      z-index: 100;
+      font-size: 14px;
+      max-width: 80%;
     }
   </style>
 </head>
@@ -128,13 +168,26 @@
   <div id="error" style="display: none;"></div>
   
   <div id="controls" style="display: none;">
-    <label for="limit-slider">Transactions: <span id="limit-value">300</span></label>
-    <input type="range" id="limit-slider" min="50" max="1000" step="50" value="300">
-    <button id="redraw">Redraw</button>
-    <button id="center">Center</button>
-    <button id="zoom-in">+</button>
-    <button id="zoom-out">-</button>
+    <label for="transaction-limit">Transaction Limit:</label>
+    <input type="number" id="transaction-limit" min="100" max="100000" step="100" value="1000">
+    
+    <label for="spacing-slider">Node Spacing:</label>
+    <input type="range" id="spacing-slider" min="50" max="500" step="10" value="200">
+    <span id="spacing-value">200</span>
+    
+    <div class="button-row">
+      <button id="redraw">Redraw</button>
+      <button id="show-all">Show ALL Data</button>
+    </div>
+    
+    <div class="zoom-controls">
+      <button id="zoom-out">−</button>
+      <button id="center">Reset View</button>
+      <button id="zoom-in">+</button>
+    </div>
   </div>
+  
+  <div id="status-message" style="display: none;"></div>
   
   <div id="chart-container"></div>
 
@@ -147,17 +200,39 @@
     // Global variables
     let allLinks = [];
     let svg, g, zoom;
-    let currentLimit = 300; // Smaller default limit for better visibility
+    let currentLimit = 1000;
+    let nodeSpacing = 200;
+    let isShowingAll = false;
     
     document.addEventListener('DOMContentLoaded', function() {
       // Set up controls
-      document.getElementById('limit-slider').addEventListener('input', function() {
-        currentLimit = this.value;
-        document.getElementById('limit-value').textContent = currentLimit;
+      document.getElementById('transaction-limit').addEventListener('input', function() {
+        currentLimit = parseInt(this.value);
+        if (isNaN(currentLimit) || currentLimit < 100) {
+          currentLimit = 100;
+        }
+      });
+      
+      document.getElementById('spacing-slider').addEventListener('input', function() {
+        nodeSpacing = parseInt(this.value);
+        document.getElementById('spacing-value').textContent = nodeSpacing;
       });
       
       document.getElementById('redraw').addEventListener('click', function() {
+        isShowingAll = false;
         updateVisualization(allLinks, currentLimit);
+      });
+      
+      document.getElementById('show-all').addEventListener('click', function() {
+        isShowingAll = true;
+        // Warning for very large datasets
+        if (allLinks.length > 10000) {
+          if (confirm(`WARNING: Rendering all ${allLinks.length} transactions may cause your browser to become unresponsive. Continue?`)) {
+            updateVisualization(allLinks, allLinks.length);
+          }
+        } else {
+          updateVisualization(allLinks, allLinks.length);
+        }
       });
       
       document.getElementById('center').addEventListener('click', function() {
@@ -165,11 +240,11 @@
       });
       
       document.getElementById('zoom-in').addEventListener('click', function() {
-        svg.transition().duration(300).call(zoom.scaleBy, 1.3);
+        svg.transition().duration(300).call(zoom.scaleBy, 1.5);
       });
       
       document.getElementById('zoom-out').addEventListener('click', function() {
-        svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+        svg.transition().duration(300).call(zoom.scaleBy, 0.67);
       });
       
       // Start loading data
@@ -333,7 +408,7 @@
       
       // Set up zoom behavior
       zoom = d3.zoom()
-        .scaleExtent([0.05, 10])  // Allow very deep zooming out
+        .scaleExtent([0.01, 20])  // Allow extremely deep zooming out
         .on('zoom', function(event) {
           g.attr('transform', event.transform);
         });
@@ -345,15 +420,21 @@
       // Clear previous visualization
       g.selectAll('*').remove();
       
-      updateStatus(`Drawing with ${limit} transactions...`);
-      console.log(`Creating visualization with ${limit} links`);
+      const message = isShowingAll ? 
+        `Drawing ALL ${links.length} transactions...` : 
+        `Drawing ${Math.min(limit, links.length)} of ${links.length} transactions...`;
       
-      // Use only a subset for performance
-      const limitedLinks = links.slice(0, limit);
+      updateStatus(message);
+      showStatusMessage(message + " This may take a moment.");
+      
+      console.log(message);
+      
+      // Use full data or limited subset
+      const displayedLinks = isShowingAll ? links : links.slice(0, limit);
       
       // Extract all unique wallets
       const uniqueWallets = new Set();
-      limitedLinks.forEach(link => {
+      displayedLinks.forEach(link => {
         uniqueWallets.add(link.source);
         uniqueWallets.add(link.target);
       });
@@ -372,7 +453,7 @@
       });
       
       // Populate connections
-      limitedLinks.forEach(link => {
+      displayedLinks.forEach(link => {
         const sourceWallet = walletsMap.get(link.source);
         const targetWallet = walletsMap.get(link.target);
         
@@ -448,31 +529,31 @@
         walletsByLevel[wallet.level].push(wallet);
       });
       
-      // MUCH LARGER virtual canvas for extreme spreading
-      const virtualWidth = Math.max(width * 5, (maxLevel + 1) * 1000);
+      // EXTREMELY LARGE virtual canvas for maximum spreading
+      const virtualWidth = Math.max(width * 10, (maxLevel + 1) * 2000);
       const maxWalletsInAnyLevel = Math.max(...Object.values(walletsByLevel).map(w => w.length));
-      const virtualHeight = Math.max(height * 5, maxWalletsInAnyLevel * 200);
+      const virtualHeight = Math.max(height * 10, maxWalletsInAnyLevel * nodeSpacing * 2);
       
-      // Assign positions to wallets with MUCH more spacing
+      // Assign positions to wallets with EXTREME spacing
       const walletPositions = {};
       const columnWidth = virtualWidth / (maxLevel + 2);
       
       Object.entries(walletsByLevel).forEach(([level, walletsInLevel]) => {
-        const levelX = 300 + parseInt(level) * columnWidth; // More horizontal spacing
-        const levelHeight = virtualHeight - 600;
+        const levelX = 500 + parseInt(level) * columnWidth; // Extreme horizontal spacing
+        const levelHeight = virtualHeight - 1000;
         const rowSpacing = levelHeight / (walletsInLevel.length + 1);
         
         walletsInLevel.forEach((wallet, i) => {
           walletPositions[wallet.id] = {
             x: levelX,
-            y: 300 + (i + 1) * rowSpacing // More vertical spacing
+            y: 500 + (i + 1) * rowSpacing // Extreme vertical spacing
           };
         });
       });
       
-      // Draw the links with THINNER lines
+      // Draw the links with VERY thin lines for less visual clutter
       g.selectAll('.link')
-        .data(limitedLinks)
+        .data(displayedLinks)
         .enter()
         .append('path')
         .attr('class', 'link')
@@ -491,70 +572,73 @@
                    ${targetPos.x},${targetPos.y}`;
         })
         .attr('stroke', '#ffffff')
-        .attr('stroke-width', d => Math.max(0.5, Math.sqrt(d.amount || 1))) // Thinner lines
+        .attr('stroke-width', d => Math.max(0.3, Math.sqrt(d.amount || 1) * 0.5)) // Very thin lines
         .attr('fill', 'none');
       
-      // Draw the wallets as LARGER circles
-      g.selectAll('.wallet-circle')
-        .data(walletArray)
-        .enter()
-        .append('circle')
-        .attr('cx', d => walletPositions[d.id]?.x || 0)
-        .attr('cy', d => walletPositions[d.id]?.y || 0)
-        .attr('r', 5) // Larger circles
-        .attr('fill', '#fff');
+      // Only draw nodes if not showing all data (for performance)
+      const shouldShowNodes = displayedLinks.length < 5000;
       
-      // Draw wallet labels with LARGER font
-      g.selectAll('.wallet-label')
-        .data(walletArray)
-        .enter()
-        .append('text')
-        .attr('class', 'node')
-        .attr('x', d => walletPositions[d.id]?.x || 0)
-        .attr('y', d => walletPositions[d.id]?.y - 10 || 0) // More distance from circle
-        .attr('text-anchor', 'middle')
-        .text(d => d.id)
-        .attr('font-size', '16px') // Larger font
-        .attr('font-weight', 'bold'); // Bold font
+      if (shouldShowNodes) {
+        // Draw the wallets as circles
+        g.selectAll('.wallet-circle')
+          .data(walletArray)
+          .enter()
+          .append('circle')
+          .attr('cx', d => walletPositions[d.id]?.x || 0)
+          .attr('cy', d => walletPositions[d.id]?.y || 0)
+          .attr('r', 4) 
+          .attr('fill', '#fff');
+        
+        // Draw wallet labels
+        g.selectAll('.wallet-label')
+          .data(walletArray)
+          .enter()
+          .append('text')
+          .attr('class', 'node')
+          .attr('x', d => walletPositions[d.id]?.x || 0)
+          .attr('y', d => walletPositions[d.id]?.y - 10 || 0)
+          .attr('text-anchor', 'middle')
+          .text(d => d.id)
+          .attr('font-size', '14px')
+          .attr('font-weight', 'bold');
+      }
       
-      // Add level headers with LARGER font
+      // Add level headers
       for (let i = 0; i <= maxLevel; i++) {
         g.append('text')
-          .attr('x', 300 + i * columnWidth)
-          .attr('y', 150) // More spacing at top
+          .attr('x', 500 + i * columnWidth)
+          .attr('y', 200) 
           .attr('text-anchor', 'middle')
-          .attr('fill', 'rgba(255, 255, 255, 0.9)') // More visible
-          .attr('font-size', '24px') // Much larger font
+          .attr('fill', 'rgba(255, 255, 255, 0.9)')
+          .attr('font-size', '32px') // Very large font
           .attr('font-weight', 'bold')
           .text(i === 0 ? 'Original Wallets' : `Step ${i}`);
       }
       
       // Add stat text
       g.append('text')
-        .attr('x', 50)
-        .attr('y', 70)
+        .attr('x', 100)
+        .attr('y', 100)
         .attr('text-anchor', 'start')
         .attr('fill', 'rgba(255, 255, 255, 0.9)')
-        .attr('font-size', '18px')
-        .text(`Showing ${limitedLinks.length} of ${allLinks.length} transactions (${uniqueWallets.size} wallets)`);
+        .attr('font-size', '24px')
+        .text(`Showing ${displayedLinks.length} of ${links.length} transactions (${uniqueWallets.size} wallets)`);
       
-      // Initial view VERY zoomed out
+      // Initial view EXTREMELY zoomed out
       svg.call(
         zoom.transform,
-        d3.zoomIdentity.scale(0.15) // Start VERY zoomed out
+        d3.zoomIdentity.scale(0.05) // Start extremely zoomed out
       );
+      
+      hideStatusMessage();
     }
     
     function centerView() {
-      const container = document.getElementById('chart-container');
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      
       svg.transition()
         .duration(300)
         .call(
           zoom.transform,
-          d3.zoomIdentity.scale(0.15) // Very zoomed out
+          d3.zoomIdentity.scale(0.05) // Very zoomed out
         );
     }
     
@@ -565,6 +649,16 @@
     
     function updateProgress(percent) {
       document.getElementById('progress-bar').style.width = `${percent}%`;
+    }
+    
+    function showStatusMessage(message) {
+      const statusElement = document.getElementById('status-message');
+      statusElement.textContent = message;
+      statusElement.style.display = 'block';
+    }
+    
+    function hideStatusMessage() {
+      document.getElementById('status-message').style.display = 'none';
     }
     
     function showError(message) {
