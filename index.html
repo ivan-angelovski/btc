@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - Simple Tree</title>
+  <title>Bitcoin Flow - Tree from CSV</title>
   <style>
     html, body {
       margin: 0;
@@ -28,7 +28,7 @@
     
     .link {
       stroke: #fff;
-      stroke-opacity: 0.25;
+      stroke-opacity: 0.2;
     }
     
     .node {
@@ -51,42 +51,146 @@
       font-size: 24px;
       color: white;
     }
+    
+    #error {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      padding: 15px;
+      background-color: rgba(220, 53, 69, 0.9);
+      color: white;
+      border-radius: 4px;
+      z-index: 1000;
+      max-width: 80%;
+    }
   </style>
 </head>
 <body>
-  <div id="loading">Loading...</div>
+  <div id="loading">Loading Bitcoin Flow Data from CSV...</div>
+  <div id="error" style="display: none;"></div>
   <div id="chart-container"></div>
 
   <!-- Load D3.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <!-- Load PapaParse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      try {
-        // Simple fixed data structure that matches your example
-        const treeData = [
-          {source: "A", target: "B"},
-          {source: "B", target: "C"},
-          {source: "B", target: "D"},
-          {source: "B", target: "E"},
-          {source: "F", target: "G"},
-          {source: "H", target: "I"},
-          {source: "J", target: "K"},
-          {source: "K", target: "L"}
-        ];
-        
-        // Draw the tree-like structure
-        createSimpleTreeLayout(treeData);
-        
-        // Hide loading indicator
-        document.getElementById('loading').style.display = 'none';
-      } catch (error) {
-        console.error("Error creating visualization:", error);
-        document.getElementById('loading').innerHTML = "Error: " + error.message;
-      }
+      loadCSVAndCreateTree();
     });
     
-    function createSimpleTreeLayout(links) {
+    async function loadCSVAndCreateTree() {
+      const csvFile = 'combined.csv';
+      
+      try {
+        console.log("Attempting to load CSV file:", csvFile);
+        
+        // Fetch CSV data
+        const response = await fetch(csvFile);
+        if (!response.ok) {
+          throw new Error(`Failed to load CSV file: ${response.statusText}`);
+        }
+        
+        const csvData = await response.text();
+        console.log("CSV loaded successfully, length:", csvData.length);
+        
+        // Parse CSV
+        Papa.parse(csvData, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: true,
+          complete: function(results) {
+            if (results.errors.length > 0) {
+              showError(`Error parsing CSV: ${results.errors[0].message}`);
+              return;
+            }
+            
+            try {
+              const data = results.data;
+              if (data.length === 0) {
+                showError('No data found in the CSV file');
+                return;
+              }
+              
+              console.log("CSV parsed successfully, records:", data.length);
+              
+              // Process data and create tree
+              const treeLinks = processCSVToTreeLinks(data);
+              createTreeVisualization(treeLinks);
+              
+              // Hide loading indicator
+              document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+              showError(`Error processing data: ${error.message}`);
+              console.error("Data processing error:", error);
+            }
+          },
+          error: function(error) {
+            showError(`Failed to parse CSV: ${error.message}`);
+            console.error("CSV parsing error:", error);
+          }
+        });
+      } catch (error) {
+        showError(`Error: ${error.message}`);
+        console.error("CSV loading error:", error);
+      }
+    }
+    
+    function processCSVToTreeLinks(csvData) {
+      const firstRow = csvData[0];
+      
+      // Use the exact column names from your CSV
+      let sourceColumn = "From (Full)";
+      let targetColumn = "To (Full)";
+      
+      // Fallback column detection if needed
+      if (!firstRow.hasOwnProperty(sourceColumn)) {
+        const columns = Object.keys(firstRow);
+        sourceColumn = columns.find(col => 
+          col.toLowerCase().includes('from') || 
+          col.toLowerCase().includes('source')
+        ) || columns[0];
+      }
+      
+      if (!firstRow.hasOwnProperty(targetColumn)) {
+        const columns = Object.keys(firstRow);
+        targetColumn = columns.find(col => 
+          col.toLowerCase().includes('to') || 
+          col.toLowerCase().includes('target')
+        ) || columns[1];
+      }
+      
+      console.log("Using columns:", sourceColumn, "->", targetColumn);
+      
+      // Extract links
+      const links = [];
+      csvData.forEach(row => {
+        const source = row[sourceColumn];
+        const target = row[targetColumn];
+        
+        // Use short versions if available
+        const sourceShort = row["From (Short)"] || 
+                           (typeof source === 'string' ? source.substring(0, 6) : source);
+        const targetShort = row["To (Short)"] || 
+                           (typeof target === 'string' ? target.substring(0, 6) : target);
+        
+        if (source && target && source !== target) {
+          links.push({
+            source: sourceShort,
+            target: targetShort,
+            originalSource: source,
+            originalTarget: target,
+            amount: row["Amount (BTC)"] || 1
+          });
+        }
+      });
+      
+      console.log("Processed links:", links.length);
+      return links;
+    }
+    
+    function createTreeVisualization(links) {
       const container = document.getElementById('chart-container');
       const width = container.clientWidth;
       const height = container.clientHeight;
@@ -98,8 +202,7 @@
         .attr('height', height);
       
       // Create a group for the tree
-      const g = svg.append('g')
-        .attr('transform', `translate(50, 50)`);
+      const g = svg.append('g');
       
       // Set up zoom behavior
       const zoom = d3.zoom()
@@ -135,13 +238,6 @@
       links.forEach(link => {
         if (targetsOnly.has(link.source)) {
           sourcesOnly.delete(link.source);
-        }
-      });
-      
-      // Remove from targetsOnly if also a source
-      links.forEach(link => {
-        if (sourcesOnly.has(link.target)) {
-          targetsOnly.delete(link.target);
         }
       });
       
@@ -187,13 +283,14 @@
       const columnWidth = width / (maxLevel + 2);
       
       Object.entries(nodesByLevel).forEach(([level, nodesInLevel]) => {
-        const levelX = 100 + parseInt(level) * columnWidth;
-        const rowHeight = height / (nodesInLevel.length + 1);
+        const levelX = 150 + parseInt(level) * columnWidth;
+        const levelHeight = height - 200;
+        const rowSpacing = levelHeight / (nodesInLevel.length + 1);
         
         nodesInLevel.forEach((node, i) => {
           nodePositions[node.id] = {
             x: levelX,
-            y: (i + 1) * rowHeight
+            y: 100 + (i + 1) * rowSpacing
           };
         });
       });
@@ -202,14 +299,28 @@
       g.selectAll('.link')
         .data(links)
         .enter()
-        .append('line')
+        .append('path')
         .attr('class', 'link')
-        .attr('x1', d => nodePositions[d.source].x)
-        .attr('y1', d => nodePositions[d.source].y)
-        .attr('x2', d => nodePositions[d.target].x)
-        .attr('y2', d => nodePositions[d.target].y)
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 2);
+        .attr('d', d => {
+          // Get positions
+          const sourcePos = nodePositions[d.source];
+          const targetPos = nodePositions[d.target];
+          
+          if (!sourcePos || !targetPos) return '';
+          
+          // For straight lines:
+          // return `M${sourcePos.x},${sourcePos.y} L${targetPos.x},${targetPos.y}`;
+          
+          // For curved paths:
+          const midX = (sourcePos.x + targetPos.x) / 2;
+          return `M${sourcePos.x},${sourcePos.y} 
+                  C${midX},${sourcePos.y} 
+                   ${midX},${targetPos.y} 
+                   ${targetPos.x},${targetPos.y}`;
+        })
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', d => Math.sqrt(d.amount || 1) * 2)
+        .attr('fill', 'none');
       
       // Draw the nodes
       g.selectAll('.node')
@@ -217,40 +328,45 @@
         .enter()
         .append('text')
         .attr('class', 'node')
-        .attr('x', d => nodePositions[d.id].x)
-        .attr('y', d => nodePositions[d.id].y)
+        .attr('x', d => nodePositions[d.id]?.x || 0)
+        .attr('y', d => nodePositions[d.id]?.y || 0)
         .attr('dy', '0.3em')
         .text(d => d.id)
-        .attr('font-size', '20px')
+        .attr('font-size', '14px')
         .attr('font-weight', 'bold');
       
-      // Initial view
+      // Add level headers
+      for (let i = 0; i <= maxLevel; i++) {
+        g.append('text')
+          .attr('x', 150 + i * columnWidth)
+          .attr('y', 50)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'rgba(255, 255, 255, 0.7)')
+          .attr('font-size', '16px')
+          .text(i === 0 ? 'Original Wallets' : `Step ${i}`);
+      }
+      
+      // Initial zoom to fit
+      const initialScale = 0.7;
       svg.call(
         zoom.transform,
-        d3.zoomIdentity.translate(width * 0.1, height * 0.1).scale(1)
+        d3.zoomIdentity.translate(width * 0.1, height * 0.1).scale(initialScale)
       );
-      
-      // Add event to draw actual wallet data from CSV if available
-      fetchRealDataIfAvailable();
     }
     
-    function fetchRealDataIfAvailable() {
-      // Try to fetch the combined.csv file
-      fetch('combined.csv')
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`CSV file not found or inaccessible.`);
-          }
-          return response.text();
-        })
-        .then(csvText => {
-          console.log("CSV data available. Length:", csvText.length);
-          // You could process real data here if needed
-        })
-        .catch(error => {
-          console.log("Note: Using example data only.", error.message);
-          // We're already showing example data, so no need to do anything
-        });
+    function showError(message) {
+      const errorElement = document.getElementById('error');
+      errorElement.textContent = message;
+      errorElement.style.display = 'block';
+      
+      document.getElementById('loading').style.display = 'none';
+      
+      // Hide error after 10 seconds
+      setTimeout(() => {
+        errorElement.style.display = 'none';
+      }, 10000);
+      
+      console.error(message);
     }
   </script>
 </body>
