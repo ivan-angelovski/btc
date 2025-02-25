@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - Maximum Horizontal Spread</title>
+  <title>Bitcoin Flow - Uniform Vertical Spacing</title>
   <style>
     html, body {
       margin: 0;
@@ -152,6 +152,7 @@
     // Global variables
     let allLinks = [];
     let svg, g, zoom;
+    const VERTICAL_SPACING = 15; // Exact vertical spacing between wallets
     
     document.addEventListener('DOMContentLoaded', function() {
       // Set up controls
@@ -326,7 +327,7 @@
       
       // Set up zoom behavior
       zoom = d3.zoom()
-        .scaleExtent([0.01, 20])
+        .scaleExtent([0.001, 20]) // Allow extremely deep zooming out
         .on('zoom', function(event) {
           g.attr('transform', event.transform);
         });
@@ -421,9 +422,6 @@
         }
       });
       
-      // Find max level (step)
-      const maxLevel = Math.max(...walletArray.map(w => w.level));
-      
       // Calculate container dimensions
       const container = document.getElementById('chart-container');
       const width = container.clientWidth;
@@ -442,34 +440,56 @@
       const relevantLevels = Object.keys(walletsByLevel).map(Number).sort((a, b) => a - b);
       const distinctLevels = relevantLevels.length;
       
+      // Find the total number of wallets - this will determine the height
+      const totalWallets = walletArray.length;
+      
+      // Calculate the required height based on the uniform vertical spacing
+      const requiredHeight = totalWallets * VERTICAL_SPACING;
+      
       // EXTREMELY MASSIVE horizontal spread
       const virtualWidth = Math.max(width * 50, distinctLevels * 10000); // Massive horizontal spacing
       
-      // More consistent vertical spacing
-      const verticalPadding = 80; // Consistent vertical padding between wallets
-      const maxNodesInAnyLevel = Math.max(...Object.values(walletsByLevel).map(w => w.length));
-      const virtualHeight = Math.max(height * 2, maxNodesInAnyLevel * verticalPadding);
+      // Set the virtual height to accommodate all wallets with exact spacing
+      const verticalMargin = 100; // Top and bottom margin
+      const virtualHeight = requiredHeight + (verticalMargin * 2);
       
-      // Assign positions with MASSIVE horizontal spacing
+      // Assign positions with MASSIVE horizontal spacing and EXACT vertical spacing
       const walletPositions = {};
       const horizontalPadding = 500; // Space from edges
       const availableWidth = virtualWidth - (horizontalPadding * 2);
       const horizontalSpacing = availableWidth / Math.max(1, distinctLevels - 1);
       
-      // Assign actual positions based on relevant levels only
+      // Sort all wallets into a single array that we'll position vertically
+      const sortedWallets = walletArray.sort((a, b) => {
+        // First sort by level
+        if (a.level !== b.level) return a.level - b.level;
+        // Then alphabetically by ID within each level
+        return a.id.localeCompare(b.id);
+      });
+      
+      // Assign Y positions with EXACT spacing
+      sortedWallets.forEach((wallet, index) => {
+        // First add vertical margin, then position each wallet exactly VERTICAL_SPACING apart
+        const y = verticalMargin + (index * VERTICAL_SPACING);
+        
+        // Store the position
+        if (!walletPositions[wallet.id]) {
+          walletPositions[wallet.id] = {
+            y: y
+          };
+        } else {
+          walletPositions[wallet.id].y = y;
+        }
+      });
+      
+      // Now assign X positions based on level
       relevantLevels.forEach((level, index) => {
-        const walletsInLevel = walletsByLevel[level];
         const levelX = horizontalPadding + index * horizontalSpacing;
         
-        // Adjust vertical layout to be more consistent
-        const totalVerticalSpace = virtualHeight - (horizontalPadding * 2);
-        
-        // Distribute nodes evenly
-        walletsInLevel.forEach((wallet, i) => {
-          walletPositions[wallet.id] = {
-            x: levelX,
-            y: horizontalPadding + (totalVerticalSpace * (i + 0.5) / walletsInLevel.length)
-          };
+        walletsByLevel[level].forEach(wallet => {
+          if (walletPositions[wallet.id]) {
+            walletPositions[wallet.id].x = levelX;
+          }
         });
       });
       
@@ -514,7 +534,7 @@
         
         g.append('text')
           .attr('x', levelX)
-          .attr('y', horizontalPadding / 2)
+          .attr('y', verticalMargin / 2)
           .attr('text-anchor', 'middle')
           .attr('fill', 'rgba(255, 255, 255, 0.9)')
           .attr('font-size', '32px')
@@ -535,7 +555,7 @@
         .duration(300)
         .call(
           zoom.transform,
-          d3.zoomIdentity.scale(0.02).translate(width/2, height/2)
+          d3.zoomIdentity.scale(0.01).translate(width/2, height/2)
         );
     }
     
