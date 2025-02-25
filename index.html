@@ -11,8 +11,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: #fff;
-      color: #111;
+      background-color: #000;
+      color: #fff;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
@@ -27,15 +27,15 @@
     }
     
     .link {
-      stroke: #111;
+      stroke: #fff;
       stroke-opacity: 0.15;
     }
     
     .node-label {
       fill: #fff;
-      text-anchor: left;
+      text-anchor: middle;
       font-size: 14px;
-      font-weight: normal;
+      font-weight: bold;
     }
     
     #loading {
@@ -516,7 +516,7 @@
                    ${midX},${targetPos.y} 
                    ${targetPos.x},${targetPos.y}`;
         })
-        .attr('stroke', '#111111')
+        .attr('stroke', '#ffffff')
         .attr('stroke-width', d => Math.max(0.3, Math.sqrt(d.amount || 1) * 0.5)) // Very thin lines
         .attr('fill', 'none');
       
@@ -528,7 +528,7 @@
         .attr('class', 'node-label')
         .attr('x', d => walletPositions[d.id]?.x || 0)
         .attr('y', d => walletPositions[d.id]?.y || 0)
-        .attr('text-anchor', 'left')
+        .attr('text-anchor', 'middle')
         .text(d => d.id);
       
       // Add level headers (only for levels that exist)
