@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Simple Flow</title>
+  <title>Bitcoin Flow - Simple Tree</title>
   <style>
     html, body {
       margin: 0;
@@ -27,32 +27,14 @@
     }
     
     .link {
-      fill: none;
       stroke: #fff;
+      stroke-opacity: 0.25;
     }
     
-    #controls {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px;
-      border-radius: 5px;
-      z-index: 100;
-    }
-    
-    button {
-      background: #333;
-      color: white;
-      border: 1px solid #555;
-      padding: 5px 10px;
-      margin-right: 5px;
-      border-radius: 3px;
-      cursor: pointer;
-    }
-    
-    button:hover {
-      background: #444;
+    .node {
+      font-size: 14px;
+      fill: #fff;
+      text-anchor: middle;
     }
     
     #loading {
@@ -73,55 +55,38 @@
 </head>
 <body>
   <div id="loading">Loading...</div>
-  
-  <div id="controls">
-    <button id="zoom-in">Zoom In</button>
-    <button id="zoom-out">Zoom Out</button>
-    <button id="reset">Reset View</button>
-  </div>
-  
   <div id="chart-container"></div>
 
   <!-- Load D3.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
   <script>
-    // Make sure we're ready
     document.addEventListener('DOMContentLoaded', function() {
-      // Wait for D3 to load
-      if (typeof d3 === 'undefined') {
-        document.getElementById('loading').innerHTML = "Error: D3.js failed to load";
-        return;
+      try {
+        // Simple fixed data structure that matches your example
+        const treeData = [
+          {source: "A", target: "B"},
+          {source: "B", target: "C"},
+          {source: "B", target: "D"},
+          {source: "B", target: "E"},
+          {source: "F", target: "G"},
+          {source: "H", target: "I"},
+          {source: "J", target: "K"},
+          {source: "K", target: "L"}
+        ];
+        
+        // Draw the tree-like structure
+        createSimpleTreeLayout(treeData);
+        
+        // Hide loading indicator
+        document.getElementById('loading').style.display = 'none';
+      } catch (error) {
+        console.error("Error creating visualization:", error);
+        document.getElementById('loading').innerHTML = "Error: " + error.message;
       }
-      
-      // Create a simple flow diagram
-      createSimpleFlowDiagram();
     });
     
-    function createSimpleFlowDiagram() {
-      // Fixed sample data to ensure something displays
-      const sampleData = {
-        nodes: [
-          {id: "wallet1", name: "16oQVS", level: 0},
-          {id: "wallet2", name: "bc1qm3", level: 1},
-          {id: "wallet3", name: "19xD3G", level: 0},
-          {id: "wallet4", name: "3QzYva", level: 1},
-          {id: "wallet5", name: "1Ja52f", level: 1},
-          {id: "wallet6", name: "bc1q8c", level: 2},
-          {id: "wallet7", name: "34xp4v", level: 2},
-          {id: "wallet8", name: "1AyZnw", level: 3}
-        ],
-        links: [
-          {source: "wallet1", target: "wallet2", value: 2.5},
-          {source: "wallet1", target: "wallet5", value: 1.2},
-          {source: "wallet3", target: "wallet4", value: 1.7},
-          {source: "wallet2", target: "wallet6", value: 0.8},
-          {source: "wallet5", target: "wallet7", value: 1.5},
-          {source: "wallet6", target: "wallet8", value: 0.9},
-          {source: "wallet7", target: "wallet8", value: 1.1}
-        ]
-      };
-      
+    function createSimpleTreeLayout(links) {
       const container = document.getElementById('chart-container');
       const width = container.clientWidth;
       const height = container.clientHeight;
@@ -130,133 +95,162 @@
       const svg = d3.select('#chart-container')
         .append('svg')
         .attr('width', width)
-        .attr('height', height)
-        .attr('viewBox', [0, 0, width, height]);
+        .attr('height', height);
       
-      // Create a group for the diagram
-      const g = svg.append('g');
+      // Create a group for the tree
+      const g = svg.append('g')
+        .attr('transform', `translate(50, 50)`);
       
-      // Define zoom behavior
+      // Set up zoom behavior
       const zoom = d3.zoom()
         .scaleExtent([0.1, 10])
         .on('zoom', function(event) {
           g.attr('transform', event.transform);
         });
       
-      // Apply zoom
       svg.call(zoom);
       
-      // Add control event listeners
-      document.getElementById('zoom-in').addEventListener('click', function() {
-        svg.transition().duration(300).call(zoom.scaleBy, 1.3);
+      // Extract all unique nodes
+      const nodesSet = new Set();
+      links.forEach(link => {
+        nodesSet.add(link.source);
+        nodesSet.add(link.target);
       });
       
-      document.getElementById('zoom-out').addEventListener('click', function() {
-        svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+      // Create nodes array
+      const nodes = Array.from(nodesSet).map(id => ({ id }));
+      
+      // Identify the levels of each node
+      const nodeLevels = {};
+      const sourcesOnly = new Set();  // Nodes that are only sources (initial nodes)
+      const targetsOnly = new Set();  // Nodes that are only targets (end nodes)
+      
+      // Get all sources and targets
+      links.forEach(link => {
+        sourcesOnly.add(link.source);
+        targetsOnly.add(link.target);
       });
       
-      document.getElementById('reset').addEventListener('click', function() {
-        svg.transition().duration(300).call(
-          zoom.transform,
-          d3.zoomIdentity.translate(width * 0.1, height * 0.3).scale(0.7)
-        );
+      // Remove from sourcesOnly if also a target
+      links.forEach(link => {
+        if (targetsOnly.has(link.source)) {
+          sourcesOnly.delete(link.source);
+        }
       });
       
-      // Calculate positions
-      const nodePositions = new Map();
-      const maxLevel = Math.max(...sampleData.nodes.map(d => d.level));
+      // Remove from targetsOnly if also a source
+      links.forEach(link => {
+        if (sourcesOnly.has(link.target)) {
+          targetsOnly.delete(link.target);
+        }
+      });
       
-      // Horizontal spacing between levels
-      const levelWidth = width / (maxLevel + 2);
+      // Assign levels starting from source-only nodes
+      sourcesOnly.forEach(source => {
+        nodeLevels[source] = 0;
+        assignLevels(source, 0);
+      });
+      
+      function assignLevels(nodeId, level) {
+        const outgoingLinks = links.filter(link => link.source === nodeId);
+        outgoingLinks.forEach(link => {
+          // If target has no level yet, or current path gives a higher level
+          if (nodeLevels[link.target] === undefined || nodeLevels[link.target] < level + 1) {
+            nodeLevels[link.target] = level + 1;
+            assignLevels(link.target, level + 1);
+          }
+        });
+      }
+      
+      // Fallback for nodes not assigned a level
+      nodes.forEach(node => {
+        if (nodeLevels[node.id] === undefined) {
+          nodeLevels[node.id] = 0; // Default to level 0
+        }
+      });
+      
+      // Get max level for column width calculation
+      const maxLevel = Math.max(...Object.values(nodeLevels));
       
       // Group nodes by level
       const nodesByLevel = {};
-      sampleData.nodes.forEach(node => {
-        if (!nodesByLevel[node.level]) {
-          nodesByLevel[node.level] = [];
+      nodes.forEach(node => {
+        const level = nodeLevels[node.id];
+        if (!nodesByLevel[level]) {
+          nodesByLevel[level] = [];
         }
-        nodesByLevel[node.level].push(node);
+        nodesByLevel[level].push(node);
       });
       
-      // Position nodes
-      Object.entries(nodesByLevel).forEach(([level, nodes]) => {
-        const levelX = 100 + parseInt(level) * levelWidth;
+      // Assign positions to nodes
+      const nodePositions = {};
+      const columnWidth = width / (maxLevel + 2);
+      
+      Object.entries(nodesByLevel).forEach(([level, nodesInLevel]) => {
+        const levelX = 100 + parseInt(level) * columnWidth;
+        const rowHeight = height / (nodesInLevel.length + 1);
         
-        // Vertical spacing
-        const levelHeight = height - 200;
-        const nodeSpacing = levelHeight / (nodes.length + 1);
-        
-        // Assign Y positions
-        nodes.forEach((node, i) => {
-          nodePositions.set(node.id, {
+        nodesInLevel.forEach((node, i) => {
+          nodePositions[node.id] = {
             x: levelX,
-            y: 100 + (i + 1) * nodeSpacing
-          });
+            y: (i + 1) * rowHeight
+          };
         });
       });
       
-      // Draw links
+      // Draw the links
       g.selectAll('.link')
-        .data(sampleData.links)
+        .data(links)
         .enter()
-        .append('path')
-        .attr('d', d => {
-          const source = nodePositions.get(d.source);
-          const target = nodePositions.get(d.target);
-          
-          // Draw curved path
-          return `M${source.x},${source.y} 
-                  C${source.x + (target.x - source.x) * 0.5},${source.y} 
-                   ${source.x + (target.x - source.x) * 0.5},${target.y} 
-                   ${target.x},${target.y}`;
-        })
-        .attr('stroke', 'white')
-        .attr('stroke-width', d => Math.sqrt(d.value) * 2)
-        .attr('stroke-opacity', 0.2)
-        .attr('fill', 'none');
+        .append('line')
+        .attr('class', 'link')
+        .attr('x1', d => nodePositions[d.source].x)
+        .attr('y1', d => nodePositions[d.source].y)
+        .attr('x2', d => nodePositions[d.target].x)
+        .attr('y2', d => nodePositions[d.target].y)
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
       
-      // Draw nodes
+      // Draw the nodes
       g.selectAll('.node')
-        .data(sampleData.nodes)
-        .enter()
-        .append('circle')
-        .attr('cx', d => nodePositions.get(d.id).x)
-        .attr('cy', d => nodePositions.get(d.id).y)
-        .attr('r', 5)
-        .attr('fill', 'white');
-      
-      // Add labels
-      g.selectAll('.label')
-        .data(sampleData.nodes)
+        .data(nodes)
         .enter()
         .append('text')
-        .attr('x', d => nodePositions.get(d.id).x)
-        .attr('y', d => nodePositions.get(d.id).y - 10)
-        .attr('text-anchor', 'middle')
-        .attr('fill', 'white')
-        .text(d => d.name);
-      
-      // Add level headers
-      for (let i = 0; i <= maxLevel; i++) {
-        g.append('text')
-          .attr('x', 100 + i * levelWidth)
-          .attr('y', 50)
-          .attr('text-anchor', 'middle')
-          .attr('fill', 'rgba(255, 255, 255, 0.7)')
-          .attr('font-size', '16px')
-          .text(i === 0 ? 'Original Wallets' : `Step ${i}`);
-      }
+        .attr('class', 'node')
+        .attr('x', d => nodePositions[d.id].x)
+        .attr('y', d => nodePositions[d.id].y)
+        .attr('dy', '0.3em')
+        .text(d => d.id)
+        .attr('font-size', '20px')
+        .attr('font-weight', 'bold');
       
       // Initial view
       svg.call(
         zoom.transform,
-        d3.zoomIdentity.translate(width * 0.1, height * 0.3).scale(0.7)
+        d3.zoomIdentity.translate(width * 0.1, height * 0.1).scale(1)
       );
       
-      // Hide loading
-      document.getElementById('loading').style.display = 'none';
-      
-      console.log("Visualization created successfully");
+      // Add event to draw actual wallet data from CSV if available
+      fetchRealDataIfAvailable();
+    }
+    
+    function fetchRealDataIfAvailable() {
+      // Try to fetch the combined.csv file
+      fetch('combined.csv')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`CSV file not found or inaccessible.`);
+          }
+          return response.text();
+        })
+        .then(csvText => {
+          console.log("CSV data available. Length:", csvText.length);
+          // You could process real data here if needed
+        })
+        .catch(error => {
+          console.log("Note: Using example data only.", error.message);
+          // We're already showing example data, so no need to do anything
+        });
     }
   </script>
 </body>
