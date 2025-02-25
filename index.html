@@ -39,7 +39,7 @@
     
     .node text {
       fill: #fff;
-      font-size: 12px;
+      font-size: 16px;
     }
     
     .tooltip {
@@ -104,7 +104,7 @@
     });
     
     // Slightly zoomed out to show more context
-    const initialScale = 0.85;
+    const initialScale = 0.7;
     
     // Main function to create the Sankey diagram
     async function createBitcoinFlowVisualization() {
@@ -297,12 +297,12 @@
       svg.call(zoom)
          .call(zoom.transform, d3.zoomIdentity.scale(initialScale).translate(width * 0.05, height * 0.05));
       
-      // Initialize the Sankey generator with much larger node padding
+      // Initialize the Sankey generator with extreme node padding to prevent overlapping
       const sankey = d3.sankey()
         .nodeId(d => d.id)
-        .nodeWidth(25)
-        .nodePadding(80)  // Significantly increased padding between nodes
-        .extent([[100, 100], [width - 100, height - 100]]);
+        .nodeWidth(30)                    // Wider nodes
+        .nodePadding(200)                // Massive padding between nodes
+        .extent([[100, 50], [width - 200, height - 50]]);  // More horizontal space
       
       // Generate the Sankey layout
       const sankeyData = sankey(data);
@@ -322,7 +322,7 @@
         .attr('d', d3.sankeyLinkHorizontal())
         .attr('stroke', '#ffffff')
         .attr('stroke-width', d => Math.max(1, d.width))
-        .attr('stroke-opacity', 0.15)
+        .attr('stroke-opacity', 0.1)  // Even more transparent
         .attr('class', 'link')
         .on('mouseover', function(event, d) {
           d3.select(this)
@@ -342,7 +342,7 @@
         })
         .on('mouseout', function() {
           d3.select(this)
-            .attr('stroke-opacity', 0.15)
+            .attr('stroke-opacity', 0.1)
             .attr('stroke-width', d => Math.max(1, d.width));
           
           // Hide tooltip
@@ -362,15 +362,15 @@
       node.append('rect')
         .attr('x', d => d.x0)
         .attr('y', d => d.y0)
-        .attr('height', d => Math.max(20, d.y1 - d.y0))  // Minimum height of 20px for better visibility
+        .attr('height', d => Math.max(25, d.y1 - d.y0))  // Taller minimum height
         .attr('width', d => d.x1 - d.x0)
         .attr('fill', d => nodeColorScale(d.id))
         .attr('stroke', '#ffffff')
-        .attr('stroke-width', 1)
+        .attr('stroke-width', 2)
         .attr('class', 'node')
         .on('mouseover', function(event, d) {
           d3.select(this)
-            .attr('stroke-width', 2)
+            .attr('stroke-width', 3)
             .attr('stroke', '#ffffff');
           
           // Show tooltip
@@ -385,7 +385,7 @@
         })
         .on('mouseout', function() {
           d3.select(this)
-            .attr('stroke-width', 1);
+            .attr('stroke-width', 2);
           
           // Hide tooltip
           tooltip.transition()
@@ -393,17 +393,17 @@
             .style('opacity', 0);
         });
       
-      // Add labels for the nodes on the opposite side of the lines for better readability
+      // Add labels for the nodes with more distance from the node
       node.append('text')
-        .attr('x', d => d.x0 < width / 2 ? d.x0 - 10 : d.x1 + 10)  // Opposite side of the node from the lines
+        .attr('x', d => d.x0 < width / 2 ? d.x0 - 15 : d.x1 + 15)  // More distance
         .attr('y', d => (d.y1 + d.y0) / 2)
         .attr('dy', '0.35em')
-        .attr('text-anchor', d => d.x0 < width / 2 ? 'end' : 'start')  // Text alignment reversed
+        .attr('text-anchor', d => d.x0 < width / 2 ? 'end' : 'start')
         .text(d => d.shortName || d.name.substring(0, 10))
         .attr('class', 'node-text')
         .style('pointer-events', 'none')
         .style('fill', '#ffffff')
-        .style('font-size', '14px')  // Larger font size for better readability
+        .style('font-size', '16px')  // Larger font
         .style('font-weight', 'bold');
       
       // Add a watermark with hover info
