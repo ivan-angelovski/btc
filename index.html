@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Wallet Flow</title>
+  <title>Bitcoin Flow - Lines Only</title>
   <style>
     html, body {
       margin: 0;
@@ -31,15 +31,9 @@
       stroke: #fff;
     }
     
-    .node rect {
-      fill: #222;
-      stroke: #fff;
-      stroke-width: 2px;
-    }
-    
-    .node text {
+    .node-label {
       fill: #fff;
-      font-size: 14px;
+      font-size: 12px;
     }
     
     .tooltip {
@@ -85,14 +79,12 @@
   </style>
 </head>
 <body>
-  <div id="loading">Loading Bitcoin Wallet Flow Data...</div>
+  <div id="loading">Loading Bitcoin Flow Data...</div>
   <div id="error" style="display: none;"></div>
   <div id="chart-container"></div>
 
   <!-- Load D3.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-  <!-- Load D3-Sankey -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
   <!-- Load PapaParse for CSV parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
@@ -101,8 +93,8 @@
       createBitcoinFlowVisualization();
     });
     
-    // Initial scale is very zoomed out to show the full network
-    const initialScale = 0.5;
+    // Initial scale is zoomed out to show the full network
+    const initialScale = 0.4;
     
     async function createBitcoinFlowVisualization() {
       const csvFile = 'combined.csv';
@@ -147,11 +139,11 @@
                 return;
               }
               
-              // Process data for Sankey diagram
-              const sankeyData = processDataForSankey(data);
+              // Process data
+              const flowData = processDataForFlow(data);
               
-              // Create the diagram
-              createSankeyDiagram(sankeyData, tooltip);
+              // Create the flow visualization
+              createFlowVisualization(flowData, tooltip);
               
               // Hide loading indicator
               hideLoading();
@@ -168,7 +160,7 @@
       }
     }
     
-    function processDataForSankey(rawData) {
+    function processDataForFlow(rawData) {
       const firstRow = rawData[0];
       
       // Use the exact column names
@@ -202,9 +194,10 @@
         );
       }
       
-      // Create nodes and links
-      const nodeMap = new Map();
-      const links = [];
+      // Set up node tracking
+      const sourceNodes = new Set();
+      const targetNodes = new Set();
+      const allLinks = [];
       
       // Process each row
       rawData.forEach(row => {
@@ -218,56 +211,38 @@
         const sourceShort = row["From (Short)"] || source.substring(0, 6);
         const targetShort = row["To (Short)"] || target.substring(0, 6);
         
-        // Add nodes if they don't exist
-        if (!nodeMap.has(source)) {
-          nodeMap.set(source, { 
-            id: source, 
-            name: source,
-            shortName: sourceShort
-          });
-        }
-        
-        if (!nodeMap.has(target)) {
-          nodeMap.set(target, { 
-            id: target, 
-            name: target,
-            shortName: targetShort
-          });
-        }
+        // Add to our sets
+        sourceNodes.add(source);
+        targetNodes.add(target);
         
         // Get value (default to 1 if not specified)
         const value = valueColumn && row[valueColumn] ? Number(row[valueColumn]) : 1;
         
-        // Add link or update existing link
-        const existingLink = links.find(link => 
-          link.source === source && link.target === target);
-        
-        if (existingLink) {
-          existingLink.value += value;
-        } else {
-          links.push({
-            source: source,
-            target: target,
-            value: value
-          });
-        }
+        // Add to links
+        allLinks.push({
+          source,
+          target,
+          sourceShort,
+          targetShort,
+          value
+        });
       });
       
-      // Convert maps to arrays
-      const nodes = Array.from(nodeMap.values());
-      
-      return { nodes, links };
+      return {
+        sources: Array.from(sourceNodes),
+        targets: Array.from(targetNodes),
+        links: allLinks
+      };
     }
     
-    function createSankeyDiagram(data, tooltip) {
+    function createFlowVisualization(data, tooltip) {
       const container = document.getElementById('chart-container');
       const width = container.clientWidth;
       const height = container.clientHeight;
       
-      // For 4K support, we'll create a very large virtual canvas
-      // This allows full spreading of the diagram
-      const virtualWidth = Math.max(width * 3, 5000);
-      const virtualHeight = Math.max(height * 3, 3000);
+      // Create a larger virtual canvas for spreading out
+      const virtualWidth = Math.max(width * 4, 6000);
+      const virtualHeight = Math.max(height * 4, 4000);
       
       // Remove any existing SVG
       d3.select('#chart-container').selectAll('*').remove();
@@ -279,7 +254,7 @@
         .attr('height', height)
         .attr('viewBox', [0, 0, virtualWidth, virtualHeight]);
       
-      // Create a group for the Sankey diagram
+      // Create a group for the flow diagram
       const g = svg.append('g');
       
       // Define zoom function
@@ -289,7 +264,7 @@
       
       // Set up zoom behavior
       const zoom = d3.zoom()
-        .scaleExtent([0.05, 10])  // Allow much more zooming out
+        .scaleExtent([0.05, 15])  // Allow extensive zooming
         .on('zoom', zoomed);
       
       // Apply zoom, initially centered and zoomed out
@@ -297,50 +272,77 @@
          .call(zoom.transform, d3.zoomIdentity
            .scale(initialScale)
            .translate(virtualWidth/4, virtualHeight/4));
+           
+      // Setup positions for source and target nodes
+      const sourceX = 200;
+      const targetX = virtualWidth - 200;
       
-      // Initialize the Sankey generator with extreme spacing
-      // This spreads nodes across the entire virtual canvas
-      const sankey = d3.sankey()
-        .nodeId(d => d.id)
-        .nodeWidth(20)
-        .nodePadding(100)  // Very large padding between nodes
-        .extent([[50, 50], [virtualWidth - 50, virtualHeight - 50]]);
+      // Calculate vertical spacing to completely avoid overlap
+      // We'll position each node with equal vertical spacing
+      const sourcesCount = data.sources.length;
+      const sourceSpacing = virtualHeight / (sourcesCount + 1);
       
-      // Generate the Sankey layout
-      const sankeyData = sankey(data);
+      const targetsCount = data.targets.length;
+      const targetSpacing = virtualHeight / (targetsCount + 1);
       
-      // Draw the links - very transparent by default
-      const link = g.append('g')
-        .attr('class', 'links')
-        .attr('fill', 'none')
-        .selectAll('path')
-        .data(sankeyData.links)
-        .enter().append('path')
-        .attr('d', d3.sankeyLinkHorizontal())
-        .attr('stroke', '#ffffff')
-        .attr('stroke-width', d => Math.max(1, d.width))
-        .attr('stroke-opacity', 0.1)  // Very transparent by default
+      // Map sources and targets to their Y positions
+      const sourcePositions = new Map();
+      data.sources.forEach((source, i) => {
+        sourcePositions.set(source, (i + 1) * sourceSpacing);
+      });
+      
+      const targetPositions = new Map();
+      data.targets.forEach((target, i) => {
+        targetPositions.set(target, (i + 1) * targetSpacing);
+      });
+      
+      // Function to create curved path between points
+      function createCurvedPath(source, target, sourceY, targetY) {
+        // Control points for the curve
+        const controlX1 = sourceX + (targetX - sourceX) * 0.33;
+        const controlX2 = sourceX + (targetX - sourceX) * 0.66;
+        
+        return `M${sourceX},${sourceY} 
+                C${controlX1},${sourceY} 
+                 ${controlX2},${targetY} 
+                 ${targetX},${targetY}`;
+      }
+      
+      // Draw the flow lines
+      const links = g.selectAll('.link')
+        .data(data.links)
+        .enter()
+        .append('path')
         .attr('class', 'link')
+        .attr('d', d => {
+          const sourceY = sourcePositions.get(d.source);
+          const targetY = targetPositions.get(d.target);
+          return createCurvedPath(sourceX, targetX, sourceY, targetY);
+        })
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', d => Math.sqrt(d.value) * 2) // Scale line width by square root of value
+        .attr('stroke-opacity', 0.15)
+        .attr('fill', 'none')
         .on('mouseover', function(event, d) {
           d3.select(this)
-            .attr('stroke-opacity', 0.5)  // More visible on hover
-            .attr('stroke-width', d => Math.max(2, d.width + 2));
+            .attr('stroke-opacity', 0.6)
+            .attr('stroke-width', d => Math.sqrt(d.value) * 2.5);
           
           // Show tooltip
           tooltip.transition()
             .duration(200)
             .style('opacity', 0.9);
           
-          tooltip.html(`<strong>From:</strong> ${d.source.name}<br>` +
-                      `<strong>To:</strong> ${d.target.name}<br>` +
+          tooltip.html(`<strong>From:</strong> ${d.source}<br>` +
+                      `<strong>To:</strong> ${d.target}<br>` +
                       `<strong>Amount:</strong> ${d.value.toFixed(8)} BTC`)
             .style('left', (event.pageX + 10) + 'px')
             .style('top', (event.pageY - 28) + 'px');
         })
         .on('mouseout', function() {
           d3.select(this)
-            .attr('stroke-opacity', 0.1)
-            .attr('stroke-width', d => Math.max(1, d.width));
+            .attr('stroke-opacity', 0.15)
+            .attr('stroke-width', d => Math.sqrt(d.value) * 2);
           
           // Hide tooltip
           tooltip.transition()
@@ -348,59 +350,41 @@
             .style('opacity', 0);
         });
       
-      // Draw the nodes
-      const node = g.append('g')
-        .attr('class', 'nodes')
-        .selectAll('g')
-        .data(sankeyData.nodes)
-        .enter().append('g');
-      
-      // Add rectangles for the nodes
-      node.append('rect')
-        .attr('x', d => d.x0)
-        .attr('y', d => d.y0)
-        .attr('height', d => Math.max(15, d.y1 - d.y0))
-        .attr('width', d => d.x1 - d.x0)
-        .attr('fill', '#222')
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 2)
-        .attr('class', 'node')
-        .on('mouseover', function(event, d) {
-          d3.select(this)
-            .attr('stroke-width', 3)
-            .attr('stroke', '#fff');
-          
-          // Show tooltip
-          tooltip.transition()
-            .duration(200)
-            .style('opacity', 0.9);
-          
-          tooltip.html(`<strong>Wallet:</strong> ${d.name}<br>` +
-                      `<strong>Total Amount:</strong> ${d.value.toFixed(8)} BTC`)
-            .style('left', (event.pageX + 10) + 'px')
-            .style('top', (event.pageY - 28) + 'px');
-        })
-        .on('mouseout', function() {
-          d3.select(this)
-            .attr('stroke-width', 2);
-          
-          // Hide tooltip
-          tooltip.transition()
-            .duration(500)
-            .style('opacity', 0);
+      // Add source labels (small, only showing the short version)
+      g.selectAll('.source-label')
+        .data(data.sources)
+        .enter()
+        .append('text')
+        .attr('class', 'node-label')
+        .attr('x', sourceX - 10)
+        .attr('y', d => sourcePositions.get(d))
+        .attr('text-anchor', 'end')
+        .attr('alignment-baseline', 'middle')
+        .attr('font-size', '12px')
+        .attr('fill', 'rgba(255, 255, 255, 0.7)')
+        .text(d => {
+          // Find the short name from links
+          const link = data.links.find(l => l.source === d);
+          return link ? link.sourceShort : d.substring(0, 6);
         });
       
-      // Add labels for the nodes on opposite sides
-      node.append('text')
-        .attr('x', d => d.x0 < virtualWidth / 2 ? d.x0 - 8 : d.x1 + 8)
-        .attr('y', d => (d.y1 + d.y0) / 2)
-        .attr('dy', '0.35em')
-        .attr('text-anchor', d => d.x0 < virtualWidth / 2 ? 'end' : 'start')
-        .text(d => d.shortName || d.name.substring(0, 6))
-        .attr('class', 'node-text')
-        .style('pointer-events', 'none')
-        .style('fill', '#ffffff')
-        .style('font-size', '14px');
+      // Add target labels (small, only showing the short version)
+      g.selectAll('.target-label')
+        .data(data.targets)
+        .enter()
+        .append('text')
+        .attr('class', 'node-label')
+        .attr('x', targetX + 10)
+        .attr('y', d => targetPositions.get(d))
+        .attr('text-anchor', 'start')
+        .attr('alignment-baseline', 'middle')
+        .attr('font-size', '12px')
+        .attr('fill', 'rgba(255, 255, 255, 0.7)')
+        .text(d => {
+          // Find the short name from links
+          const link = data.links.find(l => l.target === d);
+          return link ? link.targetShort : d.substring(0, 6);
+        });
       
       // Add subtle hint text
       svg.append('text')
