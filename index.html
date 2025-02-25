@@ -3,87 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Wallet Flow Sankey Diagram</title>
+  <title>Bitcoin Wallet Flow</title>
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    html, body {
       margin: 0;
-      padding: 20px;
-      background-color: #f5f5f5;
-    }
-    
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      background-color: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    }
-    
-    h1 {
-      color: #333;
-      margin-top: 0;
-    }
-    
-    .controls {
-      margin-bottom: 20px;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    
-    .btn {
-      background-color: #4CAF50;
-      border: none;
-      color: white;
-      padding: 8px 16px;
-      text-align: center;
-      text-decoration: none;
-      display: inline-block;
-      font-size: 14px;
-      margin: 4px 2px;
-      cursor: pointer;
-      border-radius: 4px;
-      transition: background-color 0.3s;
-    }
-    
-    .btn:hover {
-      background-color: #45a049;
-    }
-    
-    .btn-blue {
-      background-color: #2196F3;
-    }
-    
-    .btn-blue:hover {
-      background-color: #0b7dda;
-    }
-    
-    .file-input {
-      margin-bottom: 10px;
-    }
-    
-    #csv-file {
-      display: none;
-    }
-    
-    .custom-file-upload {
-      border: 1px solid #ccc;
-      display: inline-block;
-      padding: 8px 16px;
-      cursor: pointer;
-      border-radius: 4px;
-      background-color: #f8f8f8;
-    }
-    
-    .chart-container {
+      padding: 0;
       width: 100%;
-      height: 600px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+      height: 100%;
       overflow: hidden;
-      background-color: white;
+      background-color: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    #chart-container {
+      width: 100%;
+      height: 100%;
     }
     
     svg {
@@ -91,119 +26,66 @@
       height: 100%;
     }
     
-    .info {
-      margin-top: 15px;
-      color: #666;
-      font-size: 14px;
+    .link {
+      fill: none;
+      stroke: #fff;
     }
     
     .node rect {
-      cursor: move;
-      fill-opacity: 0.9;
-      shape-rendering: crispEdges;
+      fill: #1a1a1a;
+      stroke: #fff;
     }
     
     .node text {
-      pointer-events: none;
-      text-shadow: 0 1px 0 #fff;
-    }
-    
-    .link {
-      fill: none;
-      stroke-opacity: 0.4;
-    }
-    
-    .link:hover {
-      stroke-opacity: 0.7;
-    }
-    
-    .error {
-      color: #D32F2F;
-      background-color: #FFEBEE;
-      padding: 10px;
-      border-radius: 4px;
-      margin-bottom: 15px;
-    }
-    
-    .loading {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100px;
-      font-size: 18px;
-      color: #666;
-    }
-    
-    .zoom-info {
-      margin-bottom: 10px;
-      font-size: 14px;
+      fill: #fff;
+      font-size: 12px;
     }
     
     .tooltip {
       position: absolute;
       padding: 10px;
-      background-color: rgba(0, 0, 0, 0.8);
+      background-color: rgba(40, 40, 40, 0.9);
       color: white;
       border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
       pointer-events: none;
       font-size: 12px;
       z-index: 10;
+      max-width: 300px;
     }
     
-    .sample-data {
-      margin-top: 20px;
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      font-size: 24px;
+      color: white;
+    }
+    
+    #error {
+      position: fixed;
+      top: 20px;
+      left: 20px;
       padding: 15px;
-      background-color: #f0f8ff;
+      background-color: rgba(220, 53, 69, 0.9);
+      color: white;
       border-radius: 4px;
-      font-size: 14px;
-    }
-    
-    .hidden {
-      display: none;
+      z-index: 1000;
+      max-width: 80%;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Bitcoin Wallet Flow Sankey Diagram</h1>
-    
-    <div id="error-container" class="error hidden"></div>
-    
-    <div class="file-input">
-      <label for="csv-file" class="custom-file-upload">
-        <i class="fa fa-cloud-upload"></i> Choose CSV File
-      </label>
-      <input id="csv-file" type="file" accept=".csv" />
-      <span id="file-name">No file selected</span>
-    </div>
-    
-    <div class="controls">
-      <button id="reset-zoom" class="btn btn-blue">Reset Zoom</button>
-      <button id="download-svg" class="btn">Download SVG</button>
-      <button id="load-sample" class="btn">Load Sample Data</button>
-    </div>
-    
-    <div class="zoom-info">
-      <strong>Controls:</strong> Scroll to zoom, click and drag to pan
-      <div id="zoom-level">Current zoom: 1.00x</div>
-    </div>
-    
-    <div id="loading" class="loading hidden">Loading data...</div>
-    
-    <div id="chart-container" class="chart-container">
-      <svg id="sankey-svg"></svg>
-    </div>
-    
-    <div class="info">
-      <p>Hover over nodes and links to see details. Darker colors indicate higher transaction volumes.</p>
-      <p>This visualization shows the flow of bitcoins between wallets. Each node represents a wallet address, and the links show transactions between them.</p>
-    </div>
-    
-    <div id="sample-data-container" class="sample-data hidden">
-      <h3>Sample Data Preview:</h3>
-      <pre id="sample-data-content"></pre>
-    </div>
-  </div>
+  <div id="loading">Loading Bitcoin Wallet Flow Data...</div>
+  <div id="error" style="display: none;"></div>
+  <div id="chart-container"></div>
 
   <!-- Load D3.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
@@ -213,435 +95,323 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <script>
-    // Global variables
-    let currentZoom = { k: 1, x: 0, y: 0 };
-    let sankeyData = null;
-    let tooltip = null;
-    
-    // Sample data for demo purposes matching user's format
-    const sampleData = `From (Full),From (Short),To (Full),To (Short),Amount (BTC),Date
-16oQVSFH52hxhTYBxetzDPTdhN2M44pqR2,16oQVS,bc1qm34lsc65zpw79lxes69qmk6ee3ewf0j77s3h,bc1qm3,2.26615609,2025-02-11 07:44:34
-19xD3GmnBt38eVaJkTXgoLa4LPyQzce5VC,19xD3G,3QzYvaRFY5usMdAMMhTvEhZovLg3PCyWLs,3QzYva,1.48523079,2025-02-12 14:22:56
-1Ja52fHJrc1UPwRZ3JYFnipnhJm9Xtu1D2,1Ja52f,bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp7y4,bc1q8c,3.71256843,2025-02-10 09:15:21
-3D2oetdNuZUqQHPJmcMDDHYoqkyNVsFk9r,3D2oet,1LZCrrvPTZ1EnXT9PbKaHuzLVDZBjaeuYH,1LZCrr,0.98675412,2025-02-13 11:37:45
-bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh,bc1qxy,34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo,34xp4v,1.56934872,2025-02-14 17:52:08
-bc1q9d4ywgfnd8h43da5tpcxcn6ajv590cg6d3tg6axemvljvt2k76zs50tv4q,bc1q9d,1AyZnwbJ9tGz5xe5V27itv5YFUGzDdWHmE,1AyZnw,2.83219654,2025-02-15 03:19:27
-3D2oetdNuZUqQHPJmcMDDHYoqkyNVsFk9r,3D2oet,bc1q9d4ywgfnd8h43da5tpcxcn6ajv590cg6d3tg6axemvljvt2k76zs50tv4q,bc1q9d,1.25683497,2025-02-16 20:41:33
-16oQVSFH52hxhTYBxetzDPTdhN2M44pqR2,16oQVS,1Ja52fHJrc1UPwRZ3JYFnipnhJm9Xtu1D2,1Ja52f,0.76912345,2025-02-17 12:05:19
-bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh,bc1qxy,16oQVSFH52hxhTYBxetzDPTdhN2M44pqR2,16oQVS,1.93578241,2025-02-18 08:53:42`;
-    
-    document.addEventListener('DOMContentLoaded', function() {
-      // Initialize tooltip
+    // Main function to create the Sankey diagram
+    async function createBitcoinFlowVisualization() {
+      const csvFile = 'combined.csv';
+      let tooltip;
+      
+      // Create tooltip
       tooltip = d3.select("body")
         .append("div")
         .attr("class", "tooltip")
         .style("opacity", 0);
       
-      // Set up event listeners
-      document.getElementById('csv-file').addEventListener('change', handleFileSelect);
-      document.getElementById('reset-zoom').addEventListener('click', resetZoom);
-      document.getElementById('download-svg').addEventListener('click', downloadSVG);
-      document.getElementById('load-sample').addEventListener('click', loadSampleData);
-
-      // Load sample data by default to show a visualization immediately
-      loadSampleData();
-      
-      // Show sample data in the UI
-      document.getElementById('sample-data-content').textContent = sampleData;
-      
-      // Check if there's a file named 'combined.csv' in the URL parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const csvFile = urlParams.get('csv');
-      
-      if (csvFile) {
-        // Try to load the specified CSV file
-        loadCSVFromURL(csvFile);
-      } else {
-        // Show sample data section as no file is specified
-        document.getElementById('sample-data-container').classList.remove('hidden');
-      }
-    });
-    
-    function loadCSVFromURL(url) {
-      showLoading(true);
-      fetch(url)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Failed to load CSV file: ${response.statusText}`);
-          }
-          return response.text();
-        })
-        .then(csvData => {
-          processCSVData(csvData);
-        })
-        .catch(error => {
-          showError(`Error loading file: ${error.message}`);
-          showLoading(false);
-        });
-    }
-    
-    function handleFileSelect(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      
-      document.getElementById('file-name').textContent = file.name;
-      
-      // Hide sample data section when loading a file
-      document.getElementById('sample-data-container').classList.add('hidden');
-      
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          processCSVData(e.target.result);
-        } catch (error) {
-          showError(`Error processing file: ${error.message}`);
+      try {
+        // Fetch CSV data
+        const response = await fetch(csvFile);
+        if (!response.ok) {
+          throw new Error(`Failed to load CSV file: ${response.statusText}`);
         }
-      };
-      reader.onerror = function() {
-        showError('Error reading file');
-      };
-      reader.readAsText(file);
-    }
-    
-    function loadSampleData() {
-      processCSVData(sampleData);
-      document.getElementById('file-name').textContent = 'sample-data.csv (loaded)';
-      document.getElementById('sample-data-container').classList.remove('hidden');
-    }
-    
-    function processCSVData(csvText) {
-      showLoading(true);
-      hideError();
+        
+        const csvData = await response.text();
+        processCSVData(csvData);
+      } catch (error) {
+        showError(`Error: ${error.message}`);
+        hideLoading();
+      }
       
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        dynamicTyping: true,
-        complete: function(results) {
-          if (results.errors.length > 0) {
-            showError(`Error parsing CSV: ${results.errors[0].message}`);
-            showLoading(false);
-            return;
-          }
-          
-          try {
-            const data = results.data;
-            if (data.length === 0) {
-              showError('No data found in the CSV file');
-              showLoading(false);
+      function processCSVData(csvText) {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: true,
+          complete: function(results) {
+            if (results.errors.length > 0) {
+              showError(`Error parsing CSV: ${results.errors[0].message}`);
+              hideLoading();
               return;
             }
             
-            // Process data for Sankey diagram
-            const processedData = processDataForSankey(data);
-            sankeyData = processedData;
+            try {
+              const data = results.data;
+              if (data.length === 0) {
+                showError('No data found in the CSV file');
+                hideLoading();
+                return;
+              }
+              
+              // Process data for Sankey diagram
+              const sankeyData = processDataForSankey(data);
+              createSankeyDiagram(sankeyData);
+              hideLoading();
+            } catch (error) {
+              showError(`Error processing data: ${error.message}`);
+              hideLoading();
+            }
+          },
+          error: function(error) {
+            showError(`Failed to parse CSV: ${error.message}`);
+            hideLoading();
+          }
+        });
+      }
+      
+      function processDataForSankey(rawData) {
+        // Identify columns
+        const firstRow = rawData[0];
+        
+        // Use the exact column names
+        let sourceColumn = "From (Full)";
+        let targetColumn = "To (Full)";
+        let valueColumn = "Amount (BTC)";
+        
+        // Fallback column detection if needed
+        if (!firstRow.hasOwnProperty(sourceColumn)) {
+          const columns = Object.keys(firstRow);
+          sourceColumn = columns.find(col => 
+            col.toLowerCase().includes('from') || 
+            col.toLowerCase().includes('source')
+          ) || columns[0];
+        }
+        
+        if (!firstRow.hasOwnProperty(targetColumn)) {
+          const columns = Object.keys(firstRow);
+          targetColumn = columns.find(col => 
+            col.toLowerCase().includes('to') || 
+            col.toLowerCase().includes('target')
+          ) || columns[1];
+        }
+        
+        if (!firstRow.hasOwnProperty(valueColumn)) {
+          const columns = Object.keys(firstRow);
+          valueColumn = columns.find(col => 
+            col.toLowerCase().includes('amount') || 
+            col.toLowerCase().includes('value') || 
+            col.toLowerCase().includes('btc')
+          );
+        }
+        
+        // Create nodes and links
+        const nodeMap = new Map();
+        const links = [];
+        
+        // Process each row
+        rawData.forEach(row => {
+          const source = String(row[sourceColumn]);
+          const target = String(row[targetColumn]);
+          
+          // Skip invalid rows
+          if (!source || !target || source === target) return;
+          
+          // Get short names if available
+          const sourceShort = row["From (Short)"] || source.substring(0, 6);
+          const targetShort = row["To (Short)"] || target.substring(0, 6);
+          
+          // Add nodes if they don't exist
+          if (!nodeMap.has(source)) {
+            nodeMap.set(source, { 
+              id: source, 
+              name: source,
+              shortName: sourceShort
+            });
+          }
+          
+          if (!nodeMap.has(target)) {
+            nodeMap.set(target, { 
+              id: target, 
+              name: target,
+              shortName: targetShort
+            });
+          }
+          
+          // Get value (default to 1 if not specified)
+          const value = valueColumn && row[valueColumn] ? Number(row[valueColumn]) : 1;
+          
+          // Add link or update existing link
+          const existingLink = links.find(link => 
+            link.source === source && link.target === target);
+          
+          if (existingLink) {
+            existingLink.value += value;
+          } else {
+            links.push({
+              source: source,
+              target: target,
+              value: value
+            });
+          }
+        });
+        
+        // Convert maps to arrays
+        const nodes = Array.from(nodeMap.values());
+        
+        return { nodes, links };
+      }
+      
+      function createSankeyDiagram(data) {
+        const container = document.getElementById('chart-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        
+        // Remove any existing SVG
+        d3.select('#chart-container').selectAll('*').remove();
+        
+        // Create new SVG
+        const svg = d3.select('#chart-container')
+          .append('svg')
+          .attr('width', width)
+          .attr('height', height)
+          .attr('viewBox', [0, 0, width, height]);
+        
+        // Set up zoom behavior
+        const zoom = d3.zoom()
+          .scaleExtent([0.1, 10])
+          .on('zoom', zoomed);
+        
+        svg.call(zoom);
+        
+        // Create a group for the Sankey diagram
+        const g = svg.append('g');
+        
+        // Initialize the Sankey generator with increased node padding
+        const sankey = d3.sankey()
+          .nodeId(d => d.id)
+          .nodeWidth(20)
+          .nodePadding(30)  // Increased padding between nodes
+          .extent([[50, 50], [width - 50, height - 50]]);
+        
+        // Generate the Sankey layout
+        const sankeyData = sankey(data);
+        
+        // Create color scale for the nodes
+        const nodeColorScale = d3.scaleOrdinal()
+          .domain(sankeyData.nodes.map(d => d.id))
+          .range(['#333333', '#444444', '#555555']);
+        
+        // Draw the links
+        const link = g.append('g')
+          .attr('class', 'links')
+          .attr('fill', 'none')
+          .selectAll('path')
+          .data(sankeyData.links)
+          .enter().append('path')
+          .attr('d', d3.sankeyLinkHorizontal())
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', d => Math.max(1, d.width))
+          .attr('stroke-opacity', 0.3)
+          .attr('class', 'link')
+          .on('mouseover', function(event, d) {
+            d3.select(this)
+              .attr('stroke-opacity', 0.6)
+              .attr('stroke-width', d => Math.max(2, d.width + 2));
             
-            // Create Sankey diagram
-            createSankeyDiagram(processedData);
-            showLoading(false);
-          } catch (error) {
-            showError(`Error processing data: ${error.message}`);
-            showLoading(false);
-          }
-        },
-        error: function(error) {
-          showError(`Failed to parse CSV: ${error.message}`);
-          showLoading(false);
-        }
-      });
-    }
-    
-    function processDataForSankey(rawData) {
-      // Identify source and target columns based on the specified column names
-      const firstRow = rawData[0];
-      const columns = Object.keys(firstRow);
-      
-      // Use the exact column names from the user's data format
-      let sourceColumn = "From (Full)";
-      let targetColumn = "To (Full)";
-      let valueColumn = "Amount (BTC)";
-      
-      // Fallback to column detection if the exact columns aren't found
-      if (!columns.includes(sourceColumn)) {
-        sourceColumn = columns.find(col => 
-          col.toLowerCase().includes('source') || 
-          col.toLowerCase().includes('from') || 
-          col.toLowerCase().includes('sender')
-        );
-      }
-      
-      if (!columns.includes(targetColumn)) {
-        targetColumn = columns.find(col => 
-          col.toLowerCase().includes('target') || 
-          col.toLowerCase().includes('to') || 
-          col.toLowerCase().includes('recipient')
-        );
-      }
-      
-      if (!columns.includes(valueColumn)) {
-        valueColumn = columns.find(col => 
-          col.toLowerCase().includes('value') || 
-          col.toLowerCase().includes('amount') || 
-          col.toLowerCase().includes('bitcoin') || 
-          col.toLowerCase().includes('btc')
-        );
-      }
-      
-      // If we couldn't identify columns, use the first two columns
-      if (!sourceColumn || !targetColumn) {
-        if (columns.length >= 2) {
-          sourceColumn = columns[0];
-          targetColumn = columns[1];
-          if (columns.length >= 3 && !valueColumn) {
-            valueColumn = columns[2];
-          }
-        } else {
-          throw new Error('CSV needs at least source and target columns');
-        }
-      }
-      
-      // Create nodes and links
-      const nodeMap = new Map();
-      const links = [];
-      
-      // Process each row into nodes and links
-      rawData.forEach(row => {
-        const source = String(row[sourceColumn]);
-        const target = String(row[targetColumn]);
-        
-        // Skip invalid rows
-        if (!source || !target || source === target) return;
-        
-        // Get short names if available for display purposes
-        const sourceShort = row["From (Short)"] || source.substring(0, 6);
-        const targetShort = row["To (Short)"] || target.substring(0, 6);
-        
-        // Add nodes if they don't exist
-        if (!nodeMap.has(source)) {
-          nodeMap.set(source, { 
-            id: source, 
-            name: source,
-            shortName: sourceShort
+            // Show tooltip
+            tooltip.transition()
+              .duration(200)
+              .style('opacity', 0.9);
+            
+            tooltip.html(`<strong>From:</strong> ${d.source.name}<br>` +
+                        `<strong>To:</strong> ${d.target.name}<br>` +
+                        `<strong>Amount:</strong> ${d.value.toFixed(8)} BTC`)
+              .style('left', (event.pageX + 10) + 'px')
+              .style('top', (event.pageY - 28) + 'px');
+          })
+          .on('mouseout', function() {
+            d3.select(this)
+              .attr('stroke-opacity', 0.3)
+              .attr('stroke-width', d => Math.max(1, d.width));
+            
+            // Hide tooltip
+            tooltip.transition()
+              .duration(500)
+              .style('opacity', 0);
           });
-        }
-        if (!nodeMap.has(target)) {
-          nodeMap.set(target, { 
-            id: target, 
-            name: target,
-            shortName: targetShort
+        
+        // Draw the nodes
+        const node = g.append('g')
+          .attr('class', 'nodes')
+          .selectAll('g')
+          .data(sankeyData.nodes)
+          .enter().append('g');
+        
+        // Add rectangles for the nodes
+        node.append('rect')
+          .attr('x', d => d.x0)
+          .attr('y', d => d.y0)
+          .attr('height', d => Math.max(5, d.y1 - d.y0))
+          .attr('width', d => d.x1 - d.x0)
+          .attr('fill', d => nodeColorScale(d.id))
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', 1)
+          .attr('class', 'node')
+          .on('mouseover', function(event, d) {
+            d3.select(this)
+              .attr('stroke-width', 2)
+              .attr('stroke', '#ffffff');
+            
+            // Show tooltip
+            tooltip.transition()
+              .duration(200)
+              .style('opacity', 0.9);
+            
+            tooltip.html(`<strong>Wallet:</strong> ${d.name}<br>` +
+                        `<strong>Total Amount:</strong> ${d.value.toFixed(8)} BTC`)
+              .style('left', (event.pageX + 10) + 'px')
+              .style('top', (event.pageY - 28) + 'px');
+          })
+          .on('mouseout', function() {
+            d3.select(this)
+              .attr('stroke-width', 1);
+            
+            // Hide tooltip
+            tooltip.transition()
+              .duration(500)
+              .style('opacity', 0);
           });
+        
+        // Add labels for the nodes
+        node.append('text')
+          .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+          .attr('y', d => (d.y1 + d.y0) / 2)
+          .attr('dy', '0.35em')
+          .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+          .text(d => d.shortName || d.name.substring(0, 10))
+          .attr('class', 'node-text')
+          .style('pointer-events', 'none')
+          .style('fill', '#ffffff');
+        
+        // Add a watermark with hover info
+        svg.append('text')
+          .attr('x', 10)
+          .attr('y', height - 10)
+          .attr('text-anchor', 'start')
+          .attr('font-size', '12px')
+          .attr('fill', 'rgba(255, 255, 255, 0.3)')
+          .text('Scroll to zoom, drag to pan');
+        
+        function zoomed(event) {
+          g.attr('transform', event.transform);
         }
+      }
+      
+      function hideLoading() {
+        document.getElementById('loading').style.display = 'none';
+      }
+      
+      function showError(message) {
+        const errorElement = document.getElementById('error');
+        errorElement.textContent = message;
+        errorElement.style.display = 'block';
         
-        // Get value (default to 1 if not specified)
-        const value = valueColumn && row[valueColumn] ? Number(row[valueColumn]) : 1;
-        
-        // Add link or update existing link
-        const existingLink = links.find(link => 
-          link.source === source && link.target === target);
-        
-        if (existingLink) {
-          existingLink.value += value;
-        } else {
-          links.push({
-            source: source,
-            target: target,
-            value: value
-          });
-        }
-      });
-      
-      // Convert map to array
-      const nodes = Array.from(nodeMap.values());
-      
-      return { nodes, links };
-    }
-    
-    function createSankeyDiagram(data) {
-      const svg = d3.select('#sankey-svg');
-      svg.selectAll('*').remove();
-      
-      const container = document.getElementById('chart-container');
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      
-      // Set up zoom behavior
-      const zoom = d3.zoom()
-        .scaleExtent([0.1, 10])
-        .on('zoom', zoomed);
-      
-      svg.call(zoom);
-      
-      // Create a group for the Sankey diagram
-      const g = svg.append('g');
-      
-      // Initialize the Sankey generator
-      const sankey = d3.sankey()
-        .nodeId(d => d.id)
-        .nodeWidth(15)
-        .nodePadding(10)
-        .extent([[1, 5], [width - 1, height - 5]]);
-      
-      // Generate the Sankey layout
-      const sankeyData = sankey(data);
-      
-      // Create color scale
-      const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
-      
-      // Draw the links
-      const link = g.append('g')
-        .attr('class', 'links')
-        .attr('fill', 'none')
-        .selectAll('path')
-        .data(sankeyData.links)
-        .enter().append('path')
-        .attr('d', d3.sankeyLinkHorizontal())
-        .attr('stroke', d => colorScale(d.source.id))
-        .attr('stroke-width', d => Math.max(1, d.width))
-        .attr('class', 'link')
-        .style('opacity', 0.5)
-        .on('mouseover', function(event, d) {
-          d3.select(this)
-            .style('opacity', 0.8)
-            .attr('stroke-width', d => Math.max(2, d.width + 2));
-          
-          // Show tooltip
-          tooltip.transition()
-            .duration(200)
-            .style('opacity', 0.9);
-          
-          tooltip.html(`<strong>From:</strong> ${truncateAddress(d.source.name)}<br>` +
-                       `<strong>To:</strong> ${truncateAddress(d.target.name)}<br>` +
-                       `<strong>Amount:</strong> ${d.value.toFixed(8)} BTC`)
-            .style('left', (event.pageX + 10) + 'px')
-            .style('top', (event.pageY - 28) + 'px');
-        })
-        .on('mouseout', function() {
-          d3.select(this)
-            .style('opacity', 0.5)
-            .attr('stroke-width', d => Math.max(1, d.width));
-          
-          // Hide tooltip
-          tooltip.transition()
-            .duration(500)
-            .style('opacity', 0);
-        });
-      
-      // Draw the nodes
-      const node = g.append('g')
-        .attr('class', 'nodes')
-        .selectAll('g')
-        .data(sankeyData.nodes)
-        .enter().append('g');
-      
-      // Add rectangles for the nodes
-      node.append('rect')
-        .attr('x', d => d.x0)
-        .attr('y', d => d.y0)
-        .attr('height', d => d.y1 - d.y0)
-        .attr('width', d => d.x1 - d.x0)
-        .attr('fill', d => colorScale(d.id))
-        .attr('stroke', '#000')
-        .on('mouseover', function(event, d) {
-          d3.select(this).attr('stroke-width', 2);
-          
-          // Show tooltip
-          tooltip.transition()
-            .duration(200)
-            .style('opacity', 0.9);
-          
-          tooltip.html(`<strong>Wallet:</strong> ${truncateAddress(d.name, true)}<br>` +
-                       `<strong>Total Amount:</strong> ${d.value.toFixed(8)} BTC`)
-            .style('left', (event.pageX + 10) + 'px')
-            .style('top', (event.pageY - 28) + 'px');
-        })
-        .on('mouseout', function() {
-          d3.select(this).attr('stroke-width', 1);
-          
-          // Hide tooltip
-          tooltip.transition()
-            .duration(500)
-            .style('opacity', 0);
-        });
-      
-      // Add labels for the nodes
-      node.append('text')
-        .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
-        .attr('y', d => (d.y1 + d.y0) / 2)
-        .attr('dy', '0.35em')
-        .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
-        .text(d => d.shortName || truncateAddress(d.name))
-        .style('font-size', '10px')
-        .style('pointer-events', 'none');
-      
-      // Reset zoom view
-      resetZoom();
-      
-      function zoomed(event) {
-        g.attr('transform', event.transform);
-        currentZoom = event.transform;
-        updateZoomInfo();
+        // Hide error after 10 seconds
+        setTimeout(() => {
+          errorElement.style.display = 'none';
+        }, 10000);
       }
     }
     
-    function truncateAddress(address, showFull = false) {
-      if (!address) return '';
-      if (showFull) return address;
-      if (address.length > 15) {
-        return `${address.substring(0, 6)}...${address.substring(address.length - 6)}`;
-      }
-      return address;
-    }
-    
-    function resetZoom() {
-      const svg = d3.select('#sankey-svg');
-      svg.transition()
-        .duration(750)
-        .call(
-          d3.zoom().transform,
-          d3.zoomIdentity
-        );
-      
-      currentZoom = { k: 1, x: 0, y: 0 };
-      updateZoomInfo();
-    }
-    
-    function updateZoomInfo() {
-      document.getElementById('zoom-level').textContent = `Current zoom: ${currentZoom.k.toFixed(2)}x`;
-    }
-    
-    function downloadSVG() {
-      const svgElement = document.getElementById('sankey-svg');
-      const svgData = new XMLSerializer().serializeToString(svgElement);
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const svgUrl = URL.createObjectURL(svgBlob);
-      
-      const downloadLink = document.createElement('a');
-      downloadLink.href = svgUrl;
-      downloadLink.download = 'bitcoin_wallet_flow.svg';
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-    }
-    
-    function showError(message) {
-      const errorContainer = document.getElementById('error-container');
-      errorContainer.textContent = message;
-      errorContainer.classList.remove('hidden');
-    }
-    
-    function hideError() {
-      const errorContainer = document.getElementById('error-container');
-      errorContainer.classList.add('hidden');
-    }
-    
-    function showLoading(show) {
-      const loadingElement = document.getElementById('loading');
-      if (show) {
-        loadingElement.classList.remove('hidden');
-      } else {
-        loadingElement.classList.add('hidden');
-      }
-    }
+    // Initialize visualization when the page loads
+    document.addEventListener('DOMContentLoaded', createBitcoinFlowVisualization);
   </script>
 </body>
 </html>
