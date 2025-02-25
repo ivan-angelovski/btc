@@ -269,6 +269,11 @@
           .attr('height', height)
           .attr('viewBox', [0, 0, width, height]);
         
+        // Define the zoom function first
+        function zoomed(event) {
+          g.attr('transform', event.transform);
+        }
+        
         // Set up zoom behavior
         const zoom = d3.zoom()
           .scaleExtent([0.1, 10])
@@ -397,10 +402,6 @@
           .attr('font-size', '12px')
           .attr('fill', 'rgba(255, 255, 255, 0.3)')
           .text('Scroll to zoom, drag to pan');
-        
-        function zoomed(event) {
-          g.attr('transform', event.transform);
-        }
       }
       
       function hideLoading() {
