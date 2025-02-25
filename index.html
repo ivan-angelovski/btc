@@ -34,13 +34,12 @@
     .node rect {
       fill: #222;
       stroke: #fff;
-      stroke-width: 3px;
+      stroke-width: 2px;
     }
     
     .node text {
       fill: #fff;
       font-size: 14px;
-      text-shadow: 0 0 5px #000, 0 0 5px #000, 0 0 5px #000;
     }
     
     .tooltip {
@@ -49,13 +48,12 @@
       background-color: rgba(0, 0, 0, 0.9);
       color: white;
       border-radius: 4px;
-      border: 2px solid rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.5);
       pointer-events: none;
       font-size: 14px;
-      font-weight: bold;
       z-index: 10;
       max-width: 400px;
-      box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
     }
     
     #loading {
@@ -84,12 +82,6 @@
       z-index: 1000;
       max-width: 80%;
     }
-
-    .node-label-bg {
-      fill: rgba(0, 0, 0, 0.7);
-      rx: 3;
-      ry: 3;
-    }
   </style>
 </head>
 <body>
@@ -109,28 +101,8 @@
       createBitcoinFlowVisualization();
     });
     
-    const initialScale = 0.8;
-    
-    // Create a simple sample data if file loading fails
-    // This ensures something is always displayed
-    const sampleData = {
-      nodes: [
-        {id: "wallet1", name: "16oQVSFH52hxhTYBxetzDPTdhN2M44pqR2", shortName: "16oQVS"},
-        {id: "wallet2", name: "bc1qm34lsc65zpw79lxes69qmk6ee3ewf0j77s3h", shortName: "bc1qm3"},
-        {id: "wallet3", name: "19xD3GmnBt38eVaJkTXgoLa4LPyQzce5VC", shortName: "19xD3G"},
-        {id: "wallet4", name: "3QzYvaRFY5usMdAMMhTvEhZovLg3PCyWLs", shortName: "3QzYva"},
-        {id: "wallet5", name: "1Ja52fHJrc1UPwRZ3JYFnipnhJm9Xtu1D2", shortName: "1Ja52f"},
-        {id: "wallet6", name: "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp7y4", shortName: "bc1q8c"}
-      ],
-      links: [
-        {source: "wallet1", target: "wallet2", value: 2.5},
-        {source: "wallet1", target: "wallet3", value: 1.2},
-        {source: "wallet2", target: "wallet4", value: 1.7},
-        {source: "wallet3", target: "wallet5", value: 0.8},
-        {source: "wallet2", target: "wallet6", value: 0.5},
-        {source: "wallet5", target: "wallet6", value: 0.3}
-      ]
-    };
+    // Initial scale is very zoomed out to show the full network
+    const initialScale = 0.5;
     
     async function createBitcoinFlowVisualization() {
       const csvFile = 'combined.csv';
@@ -151,9 +123,7 @@
         const csvData = await response.text();
         processCSVData(csvData);
       } catch (error) {
-        console.error(`Error loading CSV: ${error.message}`);
-        // Use sample data if file loading fails
-        createSankeyDiagram(sampleData, tooltip);
+        showError(`Error: ${error.message}`);
         hideLoading();
       }
       
@@ -165,7 +135,6 @@
           complete: function(results) {
             if (results.errors.length > 0) {
               showError(`Error parsing CSV: ${results.errors[0].message}`);
-              createSankeyDiagram(sampleData, tooltip);
               hideLoading();
               return;
             }
@@ -174,7 +143,6 @@
               const data = results.data;
               if (data.length === 0) {
                 showError('No data found in the CSV file');
-                createSankeyDiagram(sampleData, tooltip);
                 hideLoading();
                 return;
               }
@@ -189,13 +157,11 @@
               hideLoading();
             } catch (error) {
               showError(`Error processing data: ${error.message}`);
-              createSankeyDiagram(sampleData, tooltip);
               hideLoading();
             }
           },
           error: function(error) {
             showError(`Failed to parse CSV: ${error.message}`);
-            createSankeyDiagram(sampleData, tooltip);
             hideLoading();
           }
         });
@@ -298,15 +264,20 @@
       const width = container.clientWidth;
       const height = container.clientHeight;
       
+      // For 4K support, we'll create a very large virtual canvas
+      // This allows full spreading of the diagram
+      const virtualWidth = Math.max(width * 3, 5000);
+      const virtualHeight = Math.max(height * 3, 3000);
+      
       // Remove any existing SVG
       d3.select('#chart-container').selectAll('*').remove();
       
-      // Create new SVG
+      // Create new SVG with the virtual size as viewBox
       const svg = d3.select('#chart-container')
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .attr('viewBox', [0, 0, width, height]);
+        .attr('viewBox', [0, 0, virtualWidth, virtualHeight]);
       
       // Create a group for the Sankey diagram
       const g = svg.append('g');
@@ -318,37 +289,27 @@
       
       // Set up zoom behavior
       const zoom = d3.zoom()
-        .scaleExtent([0.1, 10])
+        .scaleExtent([0.05, 10])  // Allow much more zooming out
         .on('zoom', zoomed);
       
-      // Apply zoom
+      // Apply zoom, initially centered and zoomed out
       svg.call(zoom)
-         .call(zoom.transform, d3.zoomIdentity.scale(initialScale).translate(width * 0.1, height * 0.1));
+         .call(zoom.transform, d3.zoomIdentity
+           .scale(initialScale)
+           .translate(virtualWidth/4, virtualHeight/4));
       
-      // CRITICAL CHANGE: Use a very simple layout with just left and right sides
-      // This dramatically spreads out nodes and makes everything more readable
+      // Initialize the Sankey generator with extreme spacing
+      // This spreads nodes across the entire virtual canvas
       const sankey = d3.sankey()
         .nodeId(d => d.id)
-        .nodeWidth(35)                     // Wider nodes
-        .nodePadding(40)                   // More padding between nodes
-        .nodeAlign(d3.sankeyJustify)       // Force nodes to left and right sides only
-        .extent([[80, 20], [width - 150, height - 20]]);
+        .nodeWidth(20)
+        .nodePadding(100)  // Very large padding between nodes
+        .extent([[50, 50], [virtualWidth - 50, virtualHeight - 50]]);
       
       // Generate the Sankey layout
       const sankeyData = sankey(data);
       
-      // Create background for link labels for better contrast
-      const linkLabelBg = g.append("g")
-        .attr("class", "link-label-backgrounds")
-        .selectAll("rect")
-        .data(sankeyData.links)
-        .enter()
-        .append("rect")
-        .attr("class", "node-label-bg")
-        .attr("rx", 3)
-        .attr("ry", 3);
-      
-      // Draw the links
+      // Draw the links - very transparent by default
       const link = g.append('g')
         .attr('class', 'links')
         .attr('fill', 'none')
@@ -356,19 +317,19 @@
         .data(sankeyData.links)
         .enter().append('path')
         .attr('d', d3.sankeyLinkHorizontal())
-        .attr('stroke', '#fff')
-        .attr('stroke-width', d => Math.max(2, d.width)) // Minimum width of 2px for visibility
-        .attr('stroke-opacity', 0.25)                   // Increased opacity
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', d => Math.max(1, d.width))
+        .attr('stroke-opacity', 0.1)  // Very transparent by default
         .attr('class', 'link')
         .on('mouseover', function(event, d) {
           d3.select(this)
-            .attr('stroke-opacity', 0.7)                // Higher contrast on hover
-            .attr('stroke-width', d => Math.max(3, d.width + 3));
+            .attr('stroke-opacity', 0.5)  // More visible on hover
+            .attr('stroke-width', d => Math.max(2, d.width + 2));
           
           // Show tooltip
           tooltip.transition()
             .duration(200)
-            .style('opacity', 0.95);
+            .style('opacity', 0.9);
           
           tooltip.html(`<strong>From:</strong> ${d.source.name}<br>` +
                       `<strong>To:</strong> ${d.target.name}<br>` +
@@ -378,8 +339,8 @@
         })
         .on('mouseout', function() {
           d3.select(this)
-            .attr('stroke-opacity', 0.25)
-            .attr('stroke-width', d => Math.max(2, d.width));
+            .attr('stroke-opacity', 0.1)
+            .attr('stroke-width', d => Math.max(1, d.width));
           
           // Hide tooltip
           tooltip.transition()
@@ -398,21 +359,21 @@
       node.append('rect')
         .attr('x', d => d.x0)
         .attr('y', d => d.y0)
-        .attr('height', d => Math.max(30, d.y1 - d.y0))  // Ensure minimum height
+        .attr('height', d => Math.max(15, d.y1 - d.y0))
         .attr('width', d => d.x1 - d.x0)
         .attr('fill', '#222')
         .attr('stroke', '#fff')
-        .attr('stroke-width', 3)
+        .attr('stroke-width', 2)
         .attr('class', 'node')
         .on('mouseover', function(event, d) {
           d3.select(this)
-            .attr('stroke-width', 4)
+            .attr('stroke-width', 3)
             .attr('stroke', '#fff');
           
           // Show tooltip
           tooltip.transition()
             .duration(200)
-            .style('opacity', 0.95);
+            .style('opacity', 0.9);
           
           tooltip.html(`<strong>Wallet:</strong> ${d.name}<br>` +
                       `<strong>Total Amount:</strong> ${d.value.toFixed(8)} BTC`)
@@ -421,7 +382,7 @@
         })
         .on('mouseout', function() {
           d3.select(this)
-            .attr('stroke-width', 3);
+            .attr('stroke-width', 2);
           
           // Hide tooltip
           tooltip.transition()
@@ -429,37 +390,25 @@
             .style('opacity', 0);
         });
       
-      // CRITICAL CHANGE: Add background rectangles for text labels
-      const labelBg = node.append('rect')
-        .attr('class', 'node-label-bg')
-        .attr('x', d => d.x0 < width / 2 ? d.x0 - 120 : d.x1 + 10)
-        .attr('y', d => (d.y1 + d.y0) / 2 - 10)
-        .attr('width', 110)
-        .attr('height', 20)
-        .attr('fill', 'rgba(0, 0, 0, 0.7)')
-        .attr('rx', 3)
-        .attr('ry', 3);
-      
-      // Add labels for the nodes
+      // Add labels for the nodes on opposite sides
       node.append('text')
-        .attr('x', d => d.x0 < width / 2 ? d.x0 - 15 : d.x1 + 15)
+        .attr('x', d => d.x0 < virtualWidth / 2 ? d.x0 - 8 : d.x1 + 8)
         .attr('y', d => (d.y1 + d.y0) / 2)
         .attr('dy', '0.35em')
-        .attr('text-anchor', d => d.x0 < width / 2 ? 'end' : 'start')
-        .text(d => d.shortName || d.name.substring(0, 8))
+        .attr('text-anchor', d => d.x0 < virtualWidth / 2 ? 'end' : 'start')
+        .text(d => d.shortName || d.name.substring(0, 6))
         .attr('class', 'node-text')
         .style('pointer-events', 'none')
-        .style('fill', '#fff')
-        .style('font-size', '16px')
-        .style('font-weight', 'bold');
+        .style('fill', '#ffffff')
+        .style('font-size', '14px');
       
-      // Instructions on how to use
+      // Add subtle hint text
       svg.append('text')
-        .attr('x', 10)
-        .attr('y', height - 10)
+        .attr('x', 20)
+        .attr('y', virtualHeight - 20)
         .attr('text-anchor', 'start')
-        .attr('font-size', '12px')
-        .attr('fill', 'rgba(255, 255, 255, 0.5)')
+        .attr('font-size', '14px')
+        .attr('fill', 'rgba(255, 255, 255, 0.3)')
         .text('Scroll to zoom, drag to pan');
     }
     
