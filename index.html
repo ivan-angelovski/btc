@@ -98,16 +98,20 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <script>
-    // Apply a better initial zoom level to make the graph more visible
-    let initialScale = 0.85;  // Slightly zoomed out to show more context
+    document.addEventListener('DOMContentLoaded', function() {
+      // Create the visualization
+      createBitcoinFlowVisualization();
+    });
+    
+    // Slightly zoomed out to show more context
+    const initialScale = 0.85;
     
     // Main function to create the Sankey diagram
     async function createBitcoinFlowVisualization() {
       const csvFile = 'combined.csv';
-      let tooltip;
       
-      // Create tooltip
-      tooltip = d3.select("body")
+      // Create tooltip div
+      const tooltip = d3.select("body")
         .append("div")
         .attr("class", "tooltip")
         .style("opacity", 0);
@@ -148,7 +152,11 @@
               
               // Process data for Sankey diagram
               const sankeyData = processDataForSankey(data);
-              createSankeyDiagram(sankeyData);
+              
+              // Create the diagram
+              createSankeyDiagram(sankeyData, tooltip);
+              
+              // Hide loading indicator
               hideLoading();
             } catch (error) {
               showError(`Error processing data: ${error.message}`);
@@ -161,267 +169,268 @@
           }
         });
       }
-      
-      function processDataForSankey(rawData) {
-        // Identify columns
-        const firstRow = rawData[0];
-        
-        // Use the exact column names
-        let sourceColumn = "From (Full)";
-        let targetColumn = "To (Full)";
-        let valueColumn = "Amount (BTC)";
-        
-        // Fallback column detection if needed
-        if (!firstRow.hasOwnProperty(sourceColumn)) {
-          const columns = Object.keys(firstRow);
-          sourceColumn = columns.find(col => 
-            col.toLowerCase().includes('from') || 
-            col.toLowerCase().includes('source')
-          ) || columns[0];
-        }
-        
-        if (!firstRow.hasOwnProperty(targetColumn)) {
-          const columns = Object.keys(firstRow);
-          targetColumn = columns.find(col => 
-            col.toLowerCase().includes('to') || 
-            col.toLowerCase().includes('target')
-          ) || columns[1];
-        }
-        
-        if (!firstRow.hasOwnProperty(valueColumn)) {
-          const columns = Object.keys(firstRow);
-          valueColumn = columns.find(col => 
-            col.toLowerCase().includes('amount') || 
-            col.toLowerCase().includes('value') || 
-            col.toLowerCase().includes('btc')
-          );
-        }
-        
-        // Create nodes and links
-        const nodeMap = new Map();
-        const links = [];
-        
-        // Process each row
-        rawData.forEach(row => {
-          const source = String(row[sourceColumn]);
-          const target = String(row[targetColumn]);
-          
-          // Skip invalid rows
-          if (!source || !target || source === target) return;
-          
-          // Get short names if available
-          const sourceShort = row["From (Short)"] || source.substring(0, 6);
-          const targetShort = row["To (Short)"] || target.substring(0, 6);
-          
-          // Add nodes if they don't exist
-          if (!nodeMap.has(source)) {
-            nodeMap.set(source, { 
-              id: source, 
-              name: source,
-              shortName: sourceShort
-            });
-          }
-          
-          if (!nodeMap.has(target)) {
-            nodeMap.set(target, { 
-              id: target, 
-              name: target,
-              shortName: targetShort
-            });
-          }
-          
-          // Get value (default to 1 if not specified)
-          const value = valueColumn && row[valueColumn] ? Number(row[valueColumn]) : 1;
-          
-          // Add link or update existing link
-          const existingLink = links.find(link => 
-            link.source === source && link.target === target);
-          
-          if (existingLink) {
-            existingLink.value += value;
-          } else {
-            links.push({
-              source: source,
-              target: target,
-              value: value
-            });
-          }
-        });
-        
-        // Convert maps to arrays
-        const nodes = Array.from(nodeMap.values());
-        
-        return { nodes, links };
-      }
-      
-      function createSankeyDiagram(data) {
-        const container = document.getElementById('chart-container');
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        
-        // Remove any existing SVG
-        d3.select('#chart-container').selectAll('*').remove();
-        
-        // Create new SVG
-        const svg = d3.select('#chart-container')
-          .append('svg')
-          .attr('width', width)
-          .attr('height', height)
-          .attr('viewBox', [0, 0, width, height]);
-        
-        // Define the zoom function first
-        function zoomed(event) {
-          g.attr('transform', event.transform);
-        }
-        
-        // Set up zoom behavior
-        const zoom = d3.zoom()
-          .scaleExtent([0.1, 10])
-          .on('zoom', zoomed);
-        
-        svg.call(zoom)
-           .call(zoom.transform, d3.zoomIdentity.scale(initialScale).translate(width * 0.05, height * 0.05));
-        
-        // Create a group for the Sankey diagram
-        const g = svg.append('g');
-        
-        // Initialize the Sankey generator with much larger node padding
-        const sankey = d3.sankey()
-          .nodeId(d => d.id)
-          .nodeWidth(25)
-          .nodePadding(80)  // Significantly increased padding between nodes
-          .extent([[100, 100], [width - 100, height - 100]]);
-        
-        // Generate the Sankey layout
-        const sankeyData = sankey(data);
-        
-        // Create color scale for the nodes
-        const nodeColorScale = d3.scaleOrdinal()
-          .domain(sankeyData.nodes.map(d => d.id))
-          .range(['#333333', '#444444', '#555555']);
-        
-        // Draw the links
-        const link = g.append('g')
-          .attr('class', 'links')
-          .attr('fill', 'none')
-          .selectAll('path')
-          .data(sankeyData.links)
-          .enter().append('path')
-          .attr('d', d3.sankeyLinkHorizontal())
-          .attr('stroke', '#ffffff')
-          .attr('stroke-width', d => Math.max(1, d.width))
-          .attr('stroke-opacity', 0.15)
-          .attr('class', 'link')
-          .on('mouseover', function(event, d) {
-            d3.select(this)
-              .attr('stroke-opacity', 0.4)
-              .attr('stroke-width', d => Math.max(2, d.width + 2));
-            
-            // Show tooltip
-            tooltip.transition()
-              .duration(200)
-              .style('opacity', 0.9);
-            
-            tooltip.html(`<strong>From:</strong> ${d.source.name}<br>` +
-                        `<strong>To:</strong> ${d.target.name}<br>` +
-                        `<strong>Amount:</strong> ${d.value.toFixed(8)} BTC`)
-              .style('left', (event.pageX + 10) + 'px')
-              .style('top', (event.pageY - 28) + 'px');
-          })
-          .on('mouseout', function() {
-            d3.select(this)
-              .attr('stroke-opacity', 0.15)
-              .attr('stroke-width', d => Math.max(1, d.width));
-            
-            // Hide tooltip
-            tooltip.transition()
-              .duration(500)
-              .style('opacity', 0);
-          });
-        
-        // Draw the nodes
-        const node = g.append('g')
-          .attr('class', 'nodes')
-          .selectAll('g')
-          .data(sankeyData.nodes)
-          .enter().append('g');
-        
-        // Add rectangles for the nodes with increased minimum height
-        node.append('rect')
-          .attr('x', d => d.x0)
-          .attr('y', d => d.y0)
-          .attr('height', d => Math.max(20, d.y1 - d.y0))  // Minimum height of 20px for better visibility
-          .attr('width', d => d.x1 - d.x0)
-          .attr('fill', d => nodeColorScale(d.id))
-          .attr('stroke', '#ffffff')
-          .attr('stroke-width', 1)
-          .attr('class', 'node')
-          .on('mouseover', function(event, d) {
-            d3.select(this)
-              .attr('stroke-width', 2)
-              .attr('stroke', '#ffffff');
-            
-            // Show tooltip
-            tooltip.transition()
-              .duration(200)
-              .style('opacity', 0.9);
-            
-            tooltip.html(`<strong>Wallet:</strong> ${d.name}<br>` +
-                        `<strong>Total Amount:</strong> ${d.value.toFixed(8)} BTC`)
-              .style('left', (event.pageX + 10) + 'px')
-              .style('top', (event.pageY - 28) + 'px');
-          })
-          .on('mouseout', function() {
-            d3.select(this)
-              .attr('stroke-width', 1);
-            
-            // Hide tooltip
-            tooltip.transition()
-              .duration(500)
-              .style('opacity', 0);
-          });
-        
-        // Add labels for the nodes on the opposite side of the lines for better readability
-        node.append('text')
-          .attr('x', d => d.x0 < width / 2 ? d.x0 - 10 : d.x1 + 10)  // Opposite side of the node from the lines
-          .attr('y', d => (d.y1 + d.y0) / 2)
-          .attr('dy', '0.35em')
-          .attr('text-anchor', d => d.x0 < width / 2 ? 'end' : 'start')  // Text alignment reversed
-          .text(d => d.shortName || d.name.substring(0, 10))
-          .attr('class', 'node-text')
-          .style('pointer-events', 'none')
-          .style('fill', '#ffffff')
-          .style('font-size', '14px')  // Larger font size for better readability
-          .style('font-weight', 'bold');
-        
-        // Add a watermark with hover info
-        svg.append('text')
-          .attr('x', 10)
-          .attr('y', height - 10)
-          .attr('text-anchor', 'start')
-          .attr('font-size', '12px')
-          .attr('fill', 'rgba(255, 255, 255, 0.3)')
-          .text('Scroll to zoom, drag to pan');
-      }
-      
-      function hideLoading() {
-        document.getElementById('loading').style.display = 'none';
-      }
-      
-      function showError(message) {
-        const errorElement = document.getElementById('error');
-        errorElement.textContent = message;
-        errorElement.style.display = 'block';
-        
-        // Hide error after 10 seconds
-        setTimeout(() => {
-          errorElement.style.display = 'none';
-        }, 10000);
-      }
     }
     
-    // Initialize visualization when the page loads
-    document.addEventListener('DOMContentLoaded', createBitcoinFlowVisualization);
+    // Process CSV data into Sankey format
+    function processDataForSankey(rawData) {
+      // Identify columns
+      const firstRow = rawData[0];
+      
+      // Use the exact column names
+      let sourceColumn = "From (Full)";
+      let targetColumn = "To (Full)";
+      let valueColumn = "Amount (BTC)";
+      
+      // Fallback column detection if needed
+      if (!firstRow.hasOwnProperty(sourceColumn)) {
+        const columns = Object.keys(firstRow);
+        sourceColumn = columns.find(col => 
+          col.toLowerCase().includes('from') || 
+          col.toLowerCase().includes('source')
+        ) || columns[0];
+      }
+      
+      if (!firstRow.hasOwnProperty(targetColumn)) {
+        const columns = Object.keys(firstRow);
+        targetColumn = columns.find(col => 
+          col.toLowerCase().includes('to') || 
+          col.toLowerCase().includes('target')
+        ) || columns[1];
+      }
+      
+      if (!firstRow.hasOwnProperty(valueColumn)) {
+        const columns = Object.keys(firstRow);
+        valueColumn = columns.find(col => 
+          col.toLowerCase().includes('amount') || 
+          col.toLowerCase().includes('value') || 
+          col.toLowerCase().includes('btc')
+        );
+      }
+      
+      // Create nodes and links
+      const nodeMap = new Map();
+      const links = [];
+      
+      // Process each row
+      rawData.forEach(row => {
+        const source = String(row[sourceColumn]);
+        const target = String(row[targetColumn]);
+        
+        // Skip invalid rows
+        if (!source || !target || source === target) return;
+        
+        // Get short names if available
+        const sourceShort = row["From (Short)"] || source.substring(0, 6);
+        const targetShort = row["To (Short)"] || target.substring(0, 6);
+        
+        // Add nodes if they don't exist
+        if (!nodeMap.has(source)) {
+          nodeMap.set(source, { 
+            id: source, 
+            name: source,
+            shortName: sourceShort
+          });
+        }
+        
+        if (!nodeMap.has(target)) {
+          nodeMap.set(target, { 
+            id: target, 
+            name: target,
+            shortName: targetShort
+          });
+        }
+        
+        // Get value (default to 1 if not specified)
+        const value = valueColumn && row[valueColumn] ? Number(row[valueColumn]) : 1;
+        
+        // Add link or update existing link
+        const existingLink = links.find(link => 
+          link.source === source && link.target === target);
+        
+        if (existingLink) {
+          existingLink.value += value;
+        } else {
+          links.push({
+            source: source,
+            target: target,
+            value: value
+          });
+        }
+      });
+      
+      // Convert maps to arrays
+      const nodes = Array.from(nodeMap.values());
+      
+      return { nodes, links };
+    }
+    
+    // Create the Sankey diagram
+    function createSankeyDiagram(data, tooltip) {
+      const container = document.getElementById('chart-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      
+      // Remove any existing SVG
+      d3.select('#chart-container').selectAll('*').remove();
+      
+      // Create new SVG
+      const svg = d3.select('#chart-container')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .attr('viewBox', [0, 0, width, height]);
+      
+      // Create a group for the Sankey diagram
+      const g = svg.append('g');
+      
+      // Define zoom function
+      function zoomed(event) {
+        g.attr('transform', event.transform);
+      }
+      
+      // Set up zoom behavior
+      const zoom = d3.zoom()
+        .scaleExtent([0.1, 10])
+        .on('zoom', zoomed);
+      
+      // Apply zoom
+      svg.call(zoom)
+         .call(zoom.transform, d3.zoomIdentity.scale(initialScale).translate(width * 0.05, height * 0.05));
+      
+      // Initialize the Sankey generator with much larger node padding
+      const sankey = d3.sankey()
+        .nodeId(d => d.id)
+        .nodeWidth(25)
+        .nodePadding(80)  // Significantly increased padding between nodes
+        .extent([[100, 100], [width - 100, height - 100]]);
+      
+      // Generate the Sankey layout
+      const sankeyData = sankey(data);
+      
+      // Create color scale for the nodes
+      const nodeColorScale = d3.scaleOrdinal()
+        .domain(sankeyData.nodes.map(d => d.id))
+        .range(['#333333', '#444444', '#555555']);
+      
+      // Draw the links
+      const link = g.append('g')
+        .attr('class', 'links')
+        .attr('fill', 'none')
+        .selectAll('path')
+        .data(sankeyData.links)
+        .enter().append('path')
+        .attr('d', d3.sankeyLinkHorizontal())
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', d => Math.max(1, d.width))
+        .attr('stroke-opacity', 0.15)
+        .attr('class', 'link')
+        .on('mouseover', function(event, d) {
+          d3.select(this)
+            .attr('stroke-opacity', 0.4)
+            .attr('stroke-width', d => Math.max(2, d.width + 2));
+          
+          // Show tooltip
+          tooltip.transition()
+            .duration(200)
+            .style('opacity', 0.9);
+          
+          tooltip.html(`<strong>From:</strong> ${d.source.name}<br>` +
+                      `<strong>To:</strong> ${d.target.name}<br>` +
+                      `<strong>Amount:</strong> ${d.value.toFixed(8)} BTC`)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 28) + 'px');
+        })
+        .on('mouseout', function() {
+          d3.select(this)
+            .attr('stroke-opacity', 0.15)
+            .attr('stroke-width', d => Math.max(1, d.width));
+          
+          // Hide tooltip
+          tooltip.transition()
+            .duration(500)
+            .style('opacity', 0);
+        });
+      
+      // Draw the nodes
+      const node = g.append('g')
+        .attr('class', 'nodes')
+        .selectAll('g')
+        .data(sankeyData.nodes)
+        .enter().append('g');
+      
+      // Add rectangles for the nodes with increased minimum height
+      node.append('rect')
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('height', d => Math.max(20, d.y1 - d.y0))  // Minimum height of 20px for better visibility
+        .attr('width', d => d.x1 - d.x0)
+        .attr('fill', d => nodeColorScale(d.id))
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', 1)
+        .attr('class', 'node')
+        .on('mouseover', function(event, d) {
+          d3.select(this)
+            .attr('stroke-width', 2)
+            .attr('stroke', '#ffffff');
+          
+          // Show tooltip
+          tooltip.transition()
+            .duration(200)
+            .style('opacity', 0.9);
+          
+          tooltip.html(`<strong>Wallet:</strong> ${d.name}<br>` +
+                      `<strong>Total Amount:</strong> ${d.value.toFixed(8)} BTC`)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 28) + 'px');
+        })
+        .on('mouseout', function() {
+          d3.select(this)
+            .attr('stroke-width', 1);
+          
+          // Hide tooltip
+          tooltip.transition()
+            .duration(500)
+            .style('opacity', 0);
+        });
+      
+      // Add labels for the nodes on the opposite side of the lines for better readability
+      node.append('text')
+        .attr('x', d => d.x0 < width / 2 ? d.x0 - 10 : d.x1 + 10)  // Opposite side of the node from the lines
+        .attr('y', d => (d.y1 + d.y0) / 2)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', d => d.x0 < width / 2 ? 'end' : 'start')  // Text alignment reversed
+        .text(d => d.shortName || d.name.substring(0, 10))
+        .attr('class', 'node-text')
+        .style('pointer-events', 'none')
+        .style('fill', '#ffffff')
+        .style('font-size', '14px')  // Larger font size for better readability
+        .style('font-weight', 'bold');
+      
+      // Add a watermark with hover info
+      svg.append('text')
+        .attr('x', 10)
+        .attr('y', height - 10)
+        .attr('text-anchor', 'start')
+        .attr('font-size', '12px')
+        .attr('fill', 'rgba(255, 255, 255, 0.3)')
+        .text('Scroll to zoom, drag to pan');
+    }
+    
+    // Helper functions
+    function hideLoading() {
+      document.getElementById('loading').style.display = 'none';
+    }
+    
+    function showError(message) {
+      const errorElement = document.getElementById('error');
+      errorElement.textContent = message;
+      errorElement.style.display = 'block';
+      
+      // Hide error after 10 seconds
+      setTimeout(() => {
+        errorElement.style.display = 'none';
+      }, 10000);
+    }
   </script>
 </body>
 </html>
