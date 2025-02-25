@@ -470,31 +470,25 @@
         return a.level - b.level;
       });
       
-      // Assign Y positions with EXACT spacing
-      sortedWallets.forEach((wallet, index) => {
-        // First add vertical margin, then position each wallet exactly VERTICAL_SPACING apart
-        const y = verticalMargin + (index * VERTICAL_SPACING);
-        
-        // Store the position
-        if (!walletPositions[wallet.id]) {
-          walletPositions[wallet.id] = {
-            y: y
-          };
-        } else {
-          walletPositions[wallet.id].y = y;
-        }
-      });
-      
-      // Now assign X positions based on level
-      relevantLevels.forEach((level, index) => {
-        const levelX = horizontalPadding + index * horizontalSpacing;
-        
-        walletsByLevel[level].forEach(wallet => {
-          if (walletPositions[wallet.id]) {
-            walletPositions[wallet.id].x = levelX;
-          }
-        });
-      });
+     // Calculate total height needed
+    const totalHeight = sortedWallets.length * VERTICAL_SPACING;
+      // Start Y position to center everything vertically
+        const startY = (virtualHeight - totalHeight) / 2;
+
+      // Assign Y positions with EXACT spacing, centered vertically
+        sortedWallets.forEach((wallet, index) => {
+      // Position each wallet centered around the middle of the canvas
+      const y = startY + (index * VERTICAL_SPACING);
+  
+      // Store the position
+      if (!walletPositions[wallet.id]) {
+        walletPositions[wallet.id] = {
+          y: y
+        };
+      } else {
+    walletPositions[wallet.id].y = y;
+  }
+});
       
       // Draw the links with thin lines
       g.selectAll('.link')
