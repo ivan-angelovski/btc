@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - FULL Dataset</title>
+  <title>Bitcoin Flow - Final Version</title>
   <style>
     html, body {
       margin: 0;
@@ -31,10 +31,11 @@
       stroke-opacity: 0.15;
     }
     
-    .node {
-      font-size: 12px;
+    .node-label {
       fill: #fff;
       text-anchor: middle;
+      font-size: 14px;
+      font-weight: bold;
     }
     
     #loading {
@@ -101,58 +102,21 @@
       border-radius: 3px;
       cursor: pointer;
       font-size: 14px;
+      width: 100%;
     }
     
     button:hover {
       background: #444;
     }
     
-    button:active {
-      background: #555;
-    }
-    
-    #limit-slider {
-      width: 100%;
-      margin: 10px 0;
-    }
-    
-    label {
-      display: block;
-      margin: 8px 0;
-      font-size: 14px;
-    }
-    
-    input[type=number] {
-      width: 100px;
-      padding: 5px;
-      background: #333;
-      color: white;
-      border: 1px solid #555;
-      border-radius: 3px;
-    }
-    
-    .button-row {
+    .zoom-controls {
       display: flex;
       justify-content: space-between;
       margin-top: 10px;
     }
     
-    .zoom-controls {
-      display: flex;
-      justify-content: center;
-      margin-top: 10px;
-    }
-    
-    #status-message {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      padding: 10px;
-      background-color: rgba(0, 0, 0, 0.7);
-      border-radius: 4px;
-      z-index: 100;
-      font-size: 14px;
-      max-width: 80%;
+    .zoom-button {
+      width: 30%;
     }
   </style>
 </head>
@@ -168,26 +132,14 @@
   <div id="error" style="display: none;"></div>
   
   <div id="controls" style="display: none;">
-    <label for="transaction-limit">Transaction Limit:</label>
-    <input type="number" id="transaction-limit" min="100" max="100000" step="100" value="1000">
-    
-    <label for="spacing-slider">Node Spacing:</label>
-    <input type="range" id="spacing-slider" min="50" max="500" step="10" value="200">
-    <span id="spacing-value">200</span>
-    
-    <div class="button-row">
-      <button id="redraw">Redraw</button>
-      <button id="show-all">Show ALL Data</button>
-    </div>
+    <button id="show-all">Show ALL Data</button>
     
     <div class="zoom-controls">
-      <button id="zoom-out">−</button>
-      <button id="center">Reset View</button>
-      <button id="zoom-in">+</button>
+      <button class="zoom-button" id="zoom-out">−</button>
+      <button class="zoom-button" id="reset">Reset</button>
+      <button class="zoom-button" id="zoom-in">+</button>
     </div>
   </div>
-  
-  <div id="status-message" style="display: none;"></div>
   
   <div id="chart-container"></div>
 
@@ -200,43 +152,15 @@
     // Global variables
     let allLinks = [];
     let svg, g, zoom;
-    let currentLimit = 1000;
-    let nodeSpacing = 200;
-    let isShowingAll = false;
     
     document.addEventListener('DOMContentLoaded', function() {
       // Set up controls
-      document.getElementById('transaction-limit').addEventListener('input', function() {
-        currentLimit = parseInt(this.value);
-        if (isNaN(currentLimit) || currentLimit < 100) {
-          currentLimit = 100;
-        }
-      });
-      
-      document.getElementById('spacing-slider').addEventListener('input', function() {
-        nodeSpacing = parseInt(this.value);
-        document.getElementById('spacing-value').textContent = nodeSpacing;
-      });
-      
-      document.getElementById('redraw').addEventListener('click', function() {
-        isShowingAll = false;
-        updateVisualization(allLinks, currentLimit);
-      });
-      
       document.getElementById('show-all').addEventListener('click', function() {
-        isShowingAll = true;
-        // Warning for very large datasets
-        if (allLinks.length > 10000) {
-          if (confirm(`WARNING: Rendering all ${allLinks.length} transactions may cause your browser to become unresponsive. Continue?`)) {
-            updateVisualization(allLinks, allLinks.length);
-          }
-        } else {
-          updateVisualization(allLinks, allLinks.length);
-        }
+        updateVisualization(allLinks);
       });
       
-      document.getElementById('center').addEventListener('click', function() {
-        centerView();
+      document.getElementById('reset').addEventListener('click', function() {
+        resetView();
       });
       
       document.getElementById('zoom-in').addEventListener('click', function() {
@@ -256,7 +180,6 @@
       
       try {
         updateStatus("Attempting to load CSV file...");
-        console.log("Attempting to load CSV file:", csvFile);
         
         // Fetch CSV data
         const response = await fetch(csvFile);
@@ -265,7 +188,6 @@
         }
         
         const csvData = await response.text();
-        console.log("CSV loaded successfully, length:", csvData.length);
         updateStatus("Parsing CSV data...");
         updateProgress(20);
         
@@ -287,7 +209,6 @@
                 return;
               }
               
-              console.log("CSV parsed successfully, records:", data.length);
               updateStatus(`Processing ${data.length} records...`);
               updateProgress(40);
               
@@ -302,9 +223,9 @@
                   updateStatus("Creating visualization...");
                   updateProgress(80);
                   
-                  // Create visualization with limited data for performance
+                  // Create visualization with all data
                   setTimeout(() => {
-                    updateVisualization(allLinks, currentLimit);
+                    updateVisualization(allLinks);
                     updateProgress(100);
                     
                     // Show controls
@@ -359,12 +280,10 @@
         ) || columns[1];
       }
       
-      console.log("Using columns:", sourceColumn, "->", targetColumn);
-      
       // Extract links
       const links = [];
       csvData.forEach((row, i) => {
-        if (i % 1000 === 0) {
+        if (i % 5000 === 0) {
           updateStatus(`Processing record ${i} of ${csvData.length}...`);
         }
         
@@ -388,7 +307,6 @@
         }
       });
       
-      console.log("Processed links:", links.length);
       return links;
     }
     
@@ -408,7 +326,7 @@
       
       // Set up zoom behavior
       zoom = d3.zoom()
-        .scaleExtent([0.01, 20])  // Allow extremely deep zooming out
+        .scaleExtent([0.01, 20])
         .on('zoom', function(event) {
           g.attr('transform', event.transform);
         });
@@ -416,30 +334,20 @@
       svg.call(zoom);
     }
     
-    function updateVisualization(links, limit) {
+    function updateVisualization(links) {
       // Clear previous visualization
       g.selectAll('*').remove();
       
-      const message = isShowingAll ? 
-        `Drawing ALL ${links.length} transactions...` : 
-        `Drawing ${Math.min(limit, links.length)} of ${links.length} transactions...`;
-      
-      updateStatus(message);
-      showStatusMessage(message + " This may take a moment.");
-      
-      console.log(message);
-      
-      // Use full data or limited subset
-      const displayedLinks = isShowingAll ? links : links.slice(0, limit);
+      updateStatus(`Drawing ${links.length} transactions...`);
       
       // Extract all unique wallets
       const uniqueWallets = new Set();
-      displayedLinks.forEach(link => {
+      links.forEach(link => {
         uniqueWallets.add(link.source);
         uniqueWallets.add(link.target);
       });
       
-      // Create graph structure for efficient traversal
+      // Create a map to manage wallet connections
       const walletsMap = new Map();
       
       // Initialize all wallets
@@ -453,7 +361,7 @@
       });
       
       // Populate connections
-      displayedLinks.forEach(link => {
+      links.forEach(link => {
         const sourceWallet = walletsMap.get(link.source);
         const targetWallet = walletsMap.get(link.target);
         
@@ -461,6 +369,7 @@
         targetWallet.incoming.add(link.source);
       });
       
+      // Identify wallet steps
       // Find starting wallets (those with no incoming transactions)
       const startWallets = Array.from(walletsMap.values()).filter(w => w.incoming.size === 0);
       
@@ -512,13 +421,13 @@
         }
       });
       
+      // Find max level (step)
+      const maxLevel = Math.max(...walletArray.map(w => w.level));
+      
       // Calculate container dimensions
       const container = document.getElementById('chart-container');
       const width = container.clientWidth;
       const height = container.clientHeight;
-      
-      // Find max level
-      const maxLevel = Math.max(...walletArray.map(w => w.level));
       
       // Group wallets by level
       const walletsByLevel = {};
@@ -529,31 +438,39 @@
         walletsByLevel[wallet.level].push(wallet);
       });
       
+      // Only include levels that exist
+      const relevantLevels = Object.keys(walletsByLevel).map(Number).sort((a, b) => a - b);
+      const distinctLevels = relevantLevels.length;
+      
       // EXTREMELY LARGE virtual canvas for maximum spreading
-      const virtualWidth = Math.max(width * 10, (maxLevel + 1) * 2000);
+      const virtualWidth = Math.max(width * 10, distinctLevels * 3000);
       const maxWalletsInAnyLevel = Math.max(...Object.values(walletsByLevel).map(w => w.length));
-      const virtualHeight = Math.max(height * 10, maxWalletsInAnyLevel * nodeSpacing * 2);
+      const virtualHeight = Math.max(height * 10, maxWalletsInAnyLevel * 300);
       
       // Assign positions to wallets with EXTREME spacing
       const walletPositions = {};
-      const columnWidth = virtualWidth / (maxLevel + 2);
+      const horizontalPadding = 500; // Space from edges
+      const availableWidth = virtualWidth - (horizontalPadding * 2);
+      const horizontalSpacing = availableWidth / Math.max(1, distinctLevels - 1);
       
-      Object.entries(walletsByLevel).forEach(([level, walletsInLevel]) => {
-        const levelX = 500 + parseInt(level) * columnWidth; // Extreme horizontal spacing
-        const levelHeight = virtualHeight - 1000;
+      // Assign actual positions based on relevant levels only
+      relevantLevels.forEach((level, index) => {
+        const walletsInLevel = walletsByLevel[level];
+        const levelX = horizontalPadding + index * horizontalSpacing;
+        const levelHeight = virtualHeight - (horizontalPadding * 2);
         const rowSpacing = levelHeight / (walletsInLevel.length + 1);
         
         walletsInLevel.forEach((wallet, i) => {
           walletPositions[wallet.id] = {
             x: levelX,
-            y: 500 + (i + 1) * rowSpacing // Extreme vertical spacing
+            y: horizontalPadding + (i + 1) * rowSpacing
           };
         });
       });
       
-      // Draw the links with VERY thin lines for less visual clutter
+      // Draw the links with thin lines
       g.selectAll('.link')
-        .data(displayedLinks)
+        .data(links)
         .enter()
         .append('path')
         .attr('class', 'link')
@@ -575,70 +492,45 @@
         .attr('stroke-width', d => Math.max(0.3, Math.sqrt(d.amount || 1) * 0.5)) // Very thin lines
         .attr('fill', 'none');
       
-      // Only draw nodes if not showing all data (for performance)
-      const shouldShowNodes = displayedLinks.length < 5000;
+      // Draw wallet labels (no circles, just text)
+      g.selectAll('.wallet-label')
+        .data(walletArray)
+        .enter()
+        .append('text')
+        .attr('class', 'node-label')
+        .attr('x', d => walletPositions[d.id]?.x || 0)
+        .attr('y', d => walletPositions[d.id]?.y || 0)
+        .attr('text-anchor', 'middle')
+        .text(d => d.id);
       
-      if (shouldShowNodes) {
-        // Draw the wallets as circles
-        g.selectAll('.wallet-circle')
-          .data(walletArray)
-          .enter()
-          .append('circle')
-          .attr('cx', d => walletPositions[d.id]?.x || 0)
-          .attr('cy', d => walletPositions[d.id]?.y || 0)
-          .attr('r', 4) 
-          .attr('fill', '#fff');
+      // Add level headers (only for levels that exist)
+      relevantLevels.forEach((level, index) => {
+        const levelX = horizontalPadding + index * horizontalSpacing;
         
-        // Draw wallet labels
-        g.selectAll('.wallet-label')
-          .data(walletArray)
-          .enter()
-          .append('text')
-          .attr('class', 'node')
-          .attr('x', d => walletPositions[d.id]?.x || 0)
-          .attr('y', d => walletPositions[d.id]?.y - 10 || 0)
-          .attr('text-anchor', 'middle')
-          .text(d => d.id)
-          .attr('font-size', '14px')
-          .attr('font-weight', 'bold');
-      }
-      
-      // Add level headers
-      for (let i = 0; i <= maxLevel; i++) {
         g.append('text')
-          .attr('x', 500 + i * columnWidth)
-          .attr('y', 200) 
+          .attr('x', levelX)
+          .attr('y', horizontalPadding / 2)
           .attr('text-anchor', 'middle')
           .attr('fill', 'rgba(255, 255, 255, 0.9)')
-          .attr('font-size', '32px') // Very large font
+          .attr('font-size', '32px')
           .attr('font-weight', 'bold')
-          .text(i === 0 ? 'Original Wallets' : `Step ${i}`);
-      }
+          .text(level === 0 ? 'Original Wallets' : `Step ${level}`);
+      });
       
-      // Add stat text
-      g.append('text')
-        .attr('x', 100)
-        .attr('y', 100)
-        .attr('text-anchor', 'start')
-        .attr('fill', 'rgba(255, 255, 255, 0.9)')
-        .attr('font-size', '24px')
-        .text(`Showing ${displayedLinks.length} of ${links.length} transactions (${uniqueWallets.size} wallets)`);
-      
-      // Initial view EXTREMELY zoomed out
-      svg.call(
-        zoom.transform,
-        d3.zoomIdentity.scale(0.05) // Start extremely zoomed out
-      );
-      
-      hideStatusMessage();
+      // Reset the view to show everything
+      resetView();
     }
     
-    function centerView() {
+    function resetView() {
+      const container = document.getElementById('chart-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      
       svg.transition()
         .duration(300)
         .call(
           zoom.transform,
-          d3.zoomIdentity.scale(0.05) // Very zoomed out
+          d3.zoomIdentity.scale(0.05).translate(width/2, height/2)
         );
     }
     
@@ -649,16 +541,6 @@
     
     function updateProgress(percent) {
       document.getElementById('progress-bar').style.width = `${percent}%`;
-    }
-    
-    function showStatusMessage(message) {
-      const statusElement = document.getElementById('status-message');
-      statusElement.textContent = message;
-      statusElement.style.display = 'block';
-    }
-    
-    function hideStatusMessage() {
-      document.getElementById('status-message').style.display = 'none';
     }
     
     function showError(message) {
