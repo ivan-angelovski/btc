@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - Non-Recursive</title>
+  <title>Bitcoin Flow - VERY Spread Out</title>
   <style>
     html, body {
       margin: 0;
@@ -11,7 +11,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: #111;
+      background-color: #000;
       color: #fff;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
@@ -43,7 +43,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
+      background-color: rgba(0, 0, 0, 0.8);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -128,8 +128,8 @@
   <div id="error" style="display: none;"></div>
   
   <div id="controls" style="display: none;">
-    <label for="limit-slider">Transactions: <span id="limit-value">1000</span></label>
-    <input type="range" id="limit-slider" min="100" max="10000" step="100" value="1000">
+    <label for="limit-slider">Transactions: <span id="limit-value">300</span></label>
+    <input type="range" id="limit-slider" min="50" max="1000" step="50" value="300">
     <button id="redraw">Redraw</button>
     <button id="center">Center</button>
     <button id="zoom-in">+</button>
@@ -147,7 +147,7 @@
     // Global variables
     let allLinks = [];
     let svg, g, zoom;
-    let currentLimit = 1000;
+    let currentLimit = 300; // Smaller default limit for better visibility
     
     document.addEventListener('DOMContentLoaded', function() {
       // Set up controls
@@ -333,7 +333,7 @@
       
       // Set up zoom behavior
       zoom = d3.zoom()
-        .scaleExtent([0.1, 10])
+        .scaleExtent([0.05, 10])  // Allow very deep zooming out
         .on('zoom', function(event) {
           g.attr('transform', event.transform);
         });
@@ -448,29 +448,29 @@
         walletsByLevel[wallet.level].push(wallet);
       });
       
-      // Determine suitable canvas size based on data
-      const virtualWidth = Math.max(width, (maxLevel + 1) * 300);
+      // MUCH LARGER virtual canvas for extreme spreading
+      const virtualWidth = Math.max(width * 5, (maxLevel + 1) * 1000);
       const maxWalletsInAnyLevel = Math.max(...Object.values(walletsByLevel).map(w => w.length));
-      const virtualHeight = Math.max(height, maxWalletsInAnyLevel * 30);
+      const virtualHeight = Math.max(height * 5, maxWalletsInAnyLevel * 200);
       
-      // Assign positions to wallets
+      // Assign positions to wallets with MUCH more spacing
       const walletPositions = {};
       const columnWidth = virtualWidth / (maxLevel + 2);
       
       Object.entries(walletsByLevel).forEach(([level, walletsInLevel]) => {
-        const levelX = 150 + parseInt(level) * columnWidth;
-        const levelHeight = virtualHeight - 200;
+        const levelX = 300 + parseInt(level) * columnWidth; // More horizontal spacing
+        const levelHeight = virtualHeight - 600;
         const rowSpacing = levelHeight / (walletsInLevel.length + 1);
         
         walletsInLevel.forEach((wallet, i) => {
           walletPositions[wallet.id] = {
             x: levelX,
-            y: 100 + (i + 1) * rowSpacing
+            y: 300 + (i + 1) * rowSpacing // More vertical spacing
           };
         });
       });
       
-      // Draw the links
+      // Draw the links with THINNER lines
       g.selectAll('.link')
         .data(limitedLinks)
         .enter()
@@ -491,55 +491,58 @@
                    ${targetPos.x},${targetPos.y}`;
         })
         .attr('stroke', '#ffffff')
-        .attr('stroke-width', d => Math.sqrt(d.amount || 1))
+        .attr('stroke-width', d => Math.max(0.5, Math.sqrt(d.amount || 1))) // Thinner lines
         .attr('fill', 'none');
       
-      // Draw the wallets (just minimal circles)
+      // Draw the wallets as LARGER circles
       g.selectAll('.wallet-circle')
         .data(walletArray)
         .enter()
         .append('circle')
         .attr('cx', d => walletPositions[d.id]?.x || 0)
         .attr('cy', d => walletPositions[d.id]?.y || 0)
-        .attr('r', 3)
+        .attr('r', 5) // Larger circles
         .attr('fill', '#fff');
       
-      // Draw wallet labels only for a reasonable number of wallets
-      if (uniqueWallets.size < 500) {
-        g.selectAll('.wallet-label')
-          .data(walletArray)
-          .enter()
-          .append('text')
-          .attr('class', 'node')
-          .attr('x', d => walletPositions[d.id]?.x || 0)
-          .attr('y', d => walletPositions[d.id]?.y - 7 || 0)
-          .attr('text-anchor', 'middle')
-          .text(d => d.id)
-          .attr('font-size', '10px');
-      }
+      // Draw wallet labels with LARGER font
+      g.selectAll('.wallet-label')
+        .data(walletArray)
+        .enter()
+        .append('text')
+        .attr('class', 'node')
+        .attr('x', d => walletPositions[d.id]?.x || 0)
+        .attr('y', d => walletPositions[d.id]?.y - 10 || 0) // More distance from circle
+        .attr('text-anchor', 'middle')
+        .text(d => d.id)
+        .attr('font-size', '16px') // Larger font
+        .attr('font-weight', 'bold'); // Bold font
       
-      // Add level headers
+      // Add level headers with LARGER font
       for (let i = 0; i <= maxLevel; i++) {
         g.append('text')
-          .attr('x', 150 + i * columnWidth)
-          .attr('y', 50)
+          .attr('x', 300 + i * columnWidth)
+          .attr('y', 150) // More spacing at top
           .attr('text-anchor', 'middle')
-          .attr('fill', 'rgba(255, 255, 255, 0.7)')
-          .attr('font-size', '16px')
+          .attr('fill', 'rgba(255, 255, 255, 0.9)') // More visible
+          .attr('font-size', '24px') // Much larger font
+          .attr('font-weight', 'bold')
           .text(i === 0 ? 'Original Wallets' : `Step ${i}`);
       }
       
       // Add stat text
       g.append('text')
-        .attr('x', 20)
-        .attr('y', 30)
+        .attr('x', 50)
+        .attr('y', 70)
         .attr('text-anchor', 'start')
-        .attr('fill', 'rgba(255, 255, 255, 0.7)')
-        .attr('font-size', '14px')
+        .attr('fill', 'rgba(255, 255, 255, 0.9)')
+        .attr('font-size', '18px')
         .text(`Showing ${limitedLinks.length} of ${allLinks.length} transactions (${uniqueWallets.size} wallets)`);
       
-      // Center view
-      centerView();
+      // Initial view VERY zoomed out
+      svg.call(
+        zoom.transform,
+        d3.zoomIdentity.scale(0.15) // Start VERY zoomed out
+      );
     }
     
     function centerView() {
@@ -547,12 +550,11 @@
       const width = container.clientWidth;
       const height = container.clientHeight;
       
-      const initialScale = 0.7;
       svg.transition()
         .duration(300)
         .call(
           zoom.transform,
-          d3.zoomIdentity.translate(width * 0.1, height * 0.1).scale(initialScale)
+          d3.zoomIdentity.scale(0.15) // Very zoomed out
         );
     }
     
