@@ -27,7 +27,7 @@
     }
     
     .link {
-      stroke: #fff;
+      stroke: #111;
       stroke-opacity: 0.15;
     }
     
@@ -516,7 +516,7 @@
                    ${midX},${targetPos.y} 
                    ${targetPos.x},${targetPos.y}`;
         })
-        .attr('stroke', '#ffffff')
+        .attr('stroke', '#111111')
         .attr('stroke-width', d => Math.max(0.3, Math.sqrt(d.amount || 1) * 0.5)) // Very thin lines
         .attr('fill', 'none');
       
