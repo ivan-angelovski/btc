@@ -528,7 +528,7 @@
         .attr('class', 'node-label')
         .attr('x', d => walletPositions[d.id]?.x || 0)
         .attr('y', d => walletPositions[d.id]?.y || 0)
-        .attr('text-anchor', 'middle')
+        .attr('text-anchor', 'left')
         .text(d => d.id);
       
       // Add level headers (only for levels that exist)
