@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - Uniform Vertical Spacing</title>
+  <title>Bitcoin Flow - Fixed Sorting</title>
   <style>
     html, body {
       margin: 0;
@@ -299,8 +299,8 @@
         
         if (source && target && source !== target) {
           links.push({
-            source: sourceShort,
-            target: targetShort,
+            source: String(sourceShort), // Ensure it's a string
+            target: String(targetShort), // Ensure it's a string
             originalSource: source,
             originalTarget: target,
             amount: row["Amount (BTC)"] || 1
@@ -341,11 +341,11 @@
       
       updateStatus(`Drawing ${links.length} transactions...`);
       
-      // Extract all unique wallets
+      // Extract all unique wallets and ensure they're strings
       const uniqueWallets = new Set();
       links.forEach(link => {
-        uniqueWallets.add(link.source);
-        uniqueWallets.add(link.target);
+        uniqueWallets.add(String(link.source));
+        uniqueWallets.add(String(link.target));
       });
       
       // Create a map to manage wallet connections
@@ -354,7 +354,7 @@
       // Initialize all wallets
       uniqueWallets.forEach(wallet => {
         walletsMap.set(wallet, {
-          id: wallet,
+          id: String(wallet), // Ensure ID is a string
           outgoing: new Set(),
           incoming: new Set(),
           level: undefined
@@ -363,11 +363,16 @@
       
       // Populate connections
       links.forEach(link => {
-        const sourceWallet = walletsMap.get(link.source);
-        const targetWallet = walletsMap.get(link.target);
+        const sourceId = String(link.source);
+        const targetId = String(link.target);
         
-        sourceWallet.outgoing.add(link.target);
-        targetWallet.incoming.add(link.source);
+        const sourceWallet = walletsMap.get(sourceId);
+        const targetWallet = walletsMap.get(targetId);
+        
+        if (sourceWallet && targetWallet) {
+          sourceWallet.outgoing.add(targetId);
+          targetWallet.incoming.add(sourceId);
+        }
       });
       
       // Identify wallet steps
@@ -397,7 +402,7 @@
             const sourceWallet = walletsMap.get(sourceId);
             
             // If source has a level and this wallet doesn't, or could be at a higher level
-            if (sourceWallet.level !== undefined) {
+            if (sourceWallet && sourceWallet.level !== undefined) {
               const newLevel = sourceWallet.level + 1;
               
               if (wallet.level === undefined || newLevel > wallet.level) {
@@ -459,12 +464,10 @@
       const availableWidth = virtualWidth - (horizontalPadding * 2);
       const horizontalSpacing = availableWidth / Math.max(1, distinctLevels - 1);
       
-      // Sort all wallets into a single array that we'll position vertically
+      // Sort all wallets by level only (avoid string comparison issues)
       const sortedWallets = walletArray.sort((a, b) => {
         // First sort by level
-        if (a.level !== b.level) return a.level - b.level;
-        // Then alphabetically by ID within each level
-        return a.id.localeCompare(b.id);
+        return a.level - b.level;
       });
       
       // Assign Y positions with EXACT spacing
