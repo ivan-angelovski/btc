@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - Tree from CSV</title>
+  <title>Bitcoin Flow - Tree (Optimized)</title>
   <style>
     html, body {
       margin: 0;
@@ -32,7 +32,7 @@
     }
     
     .node {
-      font-size: 14px;
+      font-size: 12px;
       fill: #fff;
       text-anchor: middle;
     }
@@ -45,11 +45,28 @@
       height: 100%;
       background-color: rgba(0, 0, 0, 0.8);
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       z-index: 1000;
       font-size: 24px;
       color: white;
+    }
+    
+    #progress {
+      width: 80%;
+      height: 20px;
+      background-color: #333;
+      margin-top: 20px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    
+    #progress-bar {
+      height: 100%;
+      background-color: #4CAF50;
+      width: 0%;
+      transition: width 0.2s;
     }
     
     #error {
@@ -63,11 +80,62 @@
       z-index: 1000;
       max-width: 80%;
     }
+    
+    #controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      border-radius: 4px;
+      z-index: 100;
+    }
+    
+    button {
+      background: #333;
+      color: white;
+      border: 1px solid #555;
+      padding: 5px 10px;
+      margin: 5px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background: #444;
+    }
+    
+    #limit-slider {
+      width: 100%;
+      margin: 10px 0;
+    }
+    
+    label {
+      display: block;
+      margin: 5px 0;
+    }
   </style>
 </head>
 <body>
-  <div id="loading">Loading Bitcoin Flow Data from CSV...</div>
+  <div id="loading">
+    <div>Loading Bitcoin Flow Data...</div>
+    <div id="status">Parsing CSV file</div>
+    <div id="progress">
+      <div id="progress-bar"></div>
+    </div>
+  </div>
+  
   <div id="error" style="display: none;"></div>
+  
+  <div id="controls" style="display: none;">
+    <label for="limit-slider">Number of transactions: <span id="limit-value">1000</span></label>
+    <input type="range" id="limit-slider" min="100" max="10000" step="100" value="1000">
+    <button id="redraw">Redraw with limit</button>
+    <button id="center">Center View</button>
+    <button id="zoom-in">Zoom In</button>
+    <button id="zoom-out">Zoom Out</button>
+  </div>
+  
   <div id="chart-container"></div>
 
   <!-- Load D3.js -->
@@ -76,7 +144,35 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <script>
+    // Global variables
+    let allLinks = [];
+    let svg, g, zoom;
+    let currentLimit = 1000;
+    
     document.addEventListener('DOMContentLoaded', function() {
+      // Set up controls
+      document.getElementById('limit-slider').addEventListener('input', function() {
+        currentLimit = this.value;
+        document.getElementById('limit-value').textContent = currentLimit;
+      });
+      
+      document.getElementById('redraw').addEventListener('click', function() {
+        updateVisualization(allLinks, currentLimit);
+      });
+      
+      document.getElementById('center').addEventListener('click', function() {
+        centerView();
+      });
+      
+      document.getElementById('zoom-in').addEventListener('click', function() {
+        svg.transition().duration(300).call(zoom.scaleBy, 1.3);
+      });
+      
+      document.getElementById('zoom-out').addEventListener('click', function() {
+        svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+      });
+      
+      // Start loading data
       loadCSVAndCreateTree();
     });
     
@@ -84,6 +180,7 @@
       const csvFile = 'combined.csv';
       
       try {
+        updateStatus("Attempting to load CSV file...");
         console.log("Attempting to load CSV file:", csvFile);
         
         // Fetch CSV data
@@ -94,8 +191,10 @@
         
         const csvData = await response.text();
         console.log("CSV loaded successfully, length:", csvData.length);
+        updateStatus("Parsing CSV data...");
+        updateProgress(20);
         
-        // Parse CSV
+        // Parse CSV with streaming for large files
         Papa.parse(csvData, {
           header: true,
           skipEmptyLines: true,
@@ -114,13 +213,35 @@
               }
               
               console.log("CSV parsed successfully, records:", data.length);
+              updateStatus(`Processing ${data.length} records...`);
+              updateProgress(40);
               
-              // Process data and create tree
-              const treeLinks = processCSVToTreeLinks(data);
-              createTreeVisualization(treeLinks);
-              
-              // Hide loading indicator
-              document.getElementById('loading').style.display = 'none';
+              // Process CSV data into links
+              setTimeout(() => {
+                allLinks = processCSVToTreeLinks(data);
+                updateProgress(60);
+                
+                // Set up SVG and initial visualization
+                setTimeout(() => {
+                  setupSVG();
+                  updateStatus("Creating visualization...");
+                  updateProgress(80);
+                  
+                  // Create visualization with limited data for performance
+                  setTimeout(() => {
+                    updateVisualization(allLinks, currentLimit);
+                    updateProgress(100);
+                    
+                    // Show controls
+                    document.getElementById('controls').style.display = 'block';
+                    
+                    // Hide loading indicator after a short delay
+                    setTimeout(() => {
+                      document.getElementById('loading').style.display = 'none';
+                    }, 500);
+                  }, 100);
+                }, 100);
+              }, 100);
             } catch (error) {
               showError(`Error processing data: ${error.message}`);
               console.error("Data processing error:", error);
@@ -138,6 +259,8 @@
     }
     
     function processCSVToTreeLinks(csvData) {
+      updateStatus("Extracting wallet connections...");
+      
       const firstRow = csvData[0];
       
       // Use the exact column names from your CSV
@@ -165,7 +288,11 @@
       
       // Extract links
       const links = [];
-      csvData.forEach(row => {
+      csvData.forEach((row, i) => {
+        if (i % 1000 === 0) {
+          updateStatus(`Processing record ${i} of ${csvData.length}...`);
+        }
+        
         const source = row[sourceColumn];
         const target = row[targetColumn];
         
@@ -190,32 +317,43 @@
       return links;
     }
     
-    function createTreeVisualization(links) {
+    function setupSVG() {
       const container = document.getElementById('chart-container');
       const width = container.clientWidth;
       const height = container.clientHeight;
       
-      // Create SVG
-      const svg = d3.select('#chart-container')
+      // Create main SVG
+      svg = d3.select('#chart-container')
         .append('svg')
         .attr('width', width)
         .attr('height', height);
       
       // Create a group for the tree
-      const g = svg.append('g');
+      g = svg.append('g');
       
       // Set up zoom behavior
-      const zoom = d3.zoom()
+      zoom = d3.zoom()
         .scaleExtent([0.1, 10])
         .on('zoom', function(event) {
           g.attr('transform', event.transform);
         });
       
       svg.call(zoom);
+    }
+    
+    function updateVisualization(links, limit) {
+      // Clear previous visualization
+      g.selectAll('*').remove();
+      
+      updateStatus(`Drawing with ${limit} transactions...`);
+      console.log(`Creating visualization with ${limit} links`);
+      
+      // Use only a subset for performance
+      const limitedLinks = links.slice(0, limit);
       
       // Extract all unique nodes
       const nodesSet = new Set();
-      links.forEach(link => {
+      limitedLinks.forEach(link => {
         nodesSet.add(link.source);
         nodesSet.add(link.target);
       });
@@ -229,13 +367,13 @@
       const targetsOnly = new Set();  // Nodes that are only targets (end nodes)
       
       // Get all sources and targets
-      links.forEach(link => {
+      limitedLinks.forEach(link => {
         sourcesOnly.add(link.source);
         targetsOnly.add(link.target);
       });
       
       // Remove from sourcesOnly if also a target
-      links.forEach(link => {
+      limitedLinks.forEach(link => {
         if (targetsOnly.has(link.source)) {
           sourcesOnly.delete(link.source);
         }
@@ -248,7 +386,7 @@
       });
       
       function assignLevels(nodeId, level) {
-        const outgoingLinks = links.filter(link => link.source === nodeId);
+        const outgoingLinks = limitedLinks.filter(link => link.source === nodeId);
         outgoingLinks.forEach(link => {
           // If target has no level yet, or current path gives a higher level
           if (nodeLevels[link.target] === undefined || nodeLevels[link.target] < level + 1) {
@@ -278,13 +416,23 @@
         nodesByLevel[level].push(node);
       });
       
+      // Calculate container dimensions
+      const container = document.getElementById('chart-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      
+      // Determine suitable canvas size based on data
+      const virtualWidth = Math.max(width, (maxLevel + 1) * 300);
+      const maxNodesInAnyLevel = Math.max(...Object.values(nodesByLevel).map(n => n.length));
+      const virtualHeight = Math.max(height, maxNodesInAnyLevel * 40);
+      
       // Assign positions to nodes
       const nodePositions = {};
-      const columnWidth = width / (maxLevel + 2);
+      const columnWidth = virtualWidth / (maxLevel + 2);
       
       Object.entries(nodesByLevel).forEach(([level, nodesInLevel]) => {
         const levelX = 150 + parseInt(level) * columnWidth;
-        const levelHeight = height - 200;
+        const levelHeight = virtualHeight - 200;
         const rowSpacing = levelHeight / (nodesInLevel.length + 1);
         
         nodesInLevel.forEach((node, i) => {
@@ -297,7 +445,7 @@
       
       // Draw the links
       g.selectAll('.link')
-        .data(links)
+        .data(limitedLinks)
         .enter()
         .append('path')
         .attr('class', 'link')
@@ -308,9 +456,6 @@
           
           if (!sourcePos || !targetPos) return '';
           
-          // For straight lines:
-          // return `M${sourcePos.x},${sourcePos.y} L${targetPos.x},${targetPos.y}`;
-          
           // For curved paths:
           const midX = (sourcePos.x + targetPos.x) / 2;
           return `M${sourcePos.x},${sourcePos.y} 
@@ -319,21 +464,32 @@
                    ${targetPos.x},${targetPos.y}`;
         })
         .attr('stroke', '#ffffff')
-        .attr('stroke-width', d => Math.sqrt(d.amount || 1) * 2)
+        .attr('stroke-width', d => Math.sqrt(d.amount || 1))
         .attr('fill', 'none');
       
-      // Draw the nodes
-      g.selectAll('.node')
+      // Draw the nodes (just minimal circles)
+      g.selectAll('.node-circle')
         .data(nodes)
         .enter()
-        .append('text')
-        .attr('class', 'node')
-        .attr('x', d => nodePositions[d.id]?.x || 0)
-        .attr('y', d => nodePositions[d.id]?.y || 0)
-        .attr('dy', '0.3em')
-        .text(d => d.id)
-        .attr('font-size', '14px')
-        .attr('font-weight', 'bold');
+        .append('circle')
+        .attr('cx', d => nodePositions[d.id]?.x || 0)
+        .attr('cy', d => nodePositions[d.id]?.y || 0)
+        .attr('r', 3)
+        .attr('fill', '#fff');
+      
+      // Draw node labels only for a reasonable number of nodes
+      if (nodes.length < 500) {
+        g.selectAll('.node-label')
+          .data(nodes)
+          .enter()
+          .append('text')
+          .attr('class', 'node')
+          .attr('x', d => nodePositions[d.id]?.x || 0)
+          .attr('y', d => nodePositions[d.id]?.y - 7 || 0)
+          .attr('text-anchor', 'middle')
+          .text(d => d.id)
+          .attr('font-size', '10px');
+      }
       
       // Add level headers
       for (let i = 0; i <= maxLevel; i++) {
@@ -346,20 +502,46 @@
           .text(i === 0 ? 'Original Wallets' : `Step ${i}`);
       }
       
-      // Initial zoom to fit
+      // Add stat text
+      g.append('text')
+        .attr('x', 20)
+        .attr('y', 30)
+        .attr('text-anchor', 'start')
+        .attr('fill', 'rgba(255, 255, 255, 0.7)')
+        .attr('font-size', '14px')
+        .text(`Showing ${limitedLinks.length} of ${allLinks.length} transactions (${nodes.length} wallets)`);
+      
+      // Center view
+      centerView();
+    }
+    
+    function centerView() {
+      const container = document.getElementById('chart-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      
       const initialScale = 0.7;
-      svg.call(
-        zoom.transform,
-        d3.zoomIdentity.translate(width * 0.1, height * 0.1).scale(initialScale)
-      );
+      svg.transition()
+        .duration(300)
+        .call(
+          zoom.transform,
+          d3.zoomIdentity.translate(width * 0.1, height * 0.1).scale(initialScale)
+        );
+    }
+    
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+      console.log(message);
+    }
+    
+    function updateProgress(percent) {
+      document.getElementById('progress-bar').style.width = `${percent}%`;
     }
     
     function showError(message) {
       const errorElement = document.getElementById('error');
       errorElement.textContent = message;
       errorElement.style.display = 'block';
-      
-      document.getElementById('loading').style.display = 'none';
       
       // Hide error after 10 seconds
       setTimeout(() => {
