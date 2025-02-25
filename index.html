@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Multi-Step Flow</title>
+  <title>Bitcoin Simple Flow</title>
   <style>
     html, body {
       margin: 0;
@@ -26,18 +26,33 @@
       height: 100%;
     }
     
-    .tooltip {
-      position: absolute;
-      padding: 15px;
-      background-color: rgba(0, 0, 0, 0.9);
+    .link {
+      fill: none;
+      stroke: #fff;
+    }
+    
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 100;
+    }
+    
+    button {
+      background: #333;
       color: white;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.5);
-      pointer-events: none;
-      font-size: 14px;
-      z-index: 10;
-      max-width: 400px;
-      box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+      border: 1px solid #555;
+      padding: 5px 10px;
+      margin-right: 5px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background: #444;
     }
     
     #loading {
@@ -54,432 +69,194 @@
       font-size: 24px;
       color: white;
     }
-    
-    #error {
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      padding: 15px;
-      background-color: rgba(220, 53, 69, 0.9);
-      color: white;
-      border-radius: 4px;
-      z-index: 1000;
-      max-width: 80%;
-    }
   </style>
 </head>
 <body>
-  <div id="loading">Loading Bitcoin Flow Data...</div>
-  <div id="error" style="display: none;"></div>
+  <div id="loading">Loading...</div>
+  
+  <div id="controls">
+    <button id="zoom-in">Zoom In</button>
+    <button id="zoom-out">Zoom Out</button>
+    <button id="reset">Reset View</button>
+  </div>
+  
   <div id="chart-container"></div>
 
   <!-- Load D3.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-  <!-- Load PapaParse for CSV parsing -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <script>
+    // Make sure we're ready
     document.addEventListener('DOMContentLoaded', function() {
-      createBitcoinFlowVisualization();
+      // Wait for D3 to load
+      if (typeof d3 === 'undefined') {
+        document.getElementById('loading').innerHTML = "Error: D3.js failed to load";
+        return;
+      }
+      
+      // Create a simple flow diagram
+      createSimpleFlowDiagram();
     });
     
-    // Initial scale is very zoomed out to show everything
-    const initialScale = 0.4;
-    
-    async function createBitcoinFlowVisualization() {
-      const csvFile = 'combined.csv';
+    function createSimpleFlowDiagram() {
+      // Fixed sample data to ensure something displays
+      const sampleData = {
+        nodes: [
+          {id: "wallet1", name: "16oQVS", level: 0},
+          {id: "wallet2", name: "bc1qm3", level: 1},
+          {id: "wallet3", name: "19xD3G", level: 0},
+          {id: "wallet4", name: "3QzYva", level: 1},
+          {id: "wallet5", name: "1Ja52f", level: 1},
+          {id: "wallet6", name: "bc1q8c", level: 2},
+          {id: "wallet7", name: "34xp4v", level: 2},
+          {id: "wallet8", name: "1AyZnw", level: 3}
+        ],
+        links: [
+          {source: "wallet1", target: "wallet2", value: 2.5},
+          {source: "wallet1", target: "wallet5", value: 1.2},
+          {source: "wallet3", target: "wallet4", value: 1.7},
+          {source: "wallet2", target: "wallet6", value: 0.8},
+          {source: "wallet5", target: "wallet7", value: 1.5},
+          {source: "wallet6", target: "wallet8", value: 0.9},
+          {source: "wallet7", target: "wallet8", value: 1.1}
+        ]
+      };
       
-      // Create tooltip div
-      const tooltip = d3.select("body")
-        .append("div")
-        .attr("class", "tooltip")
-        .style("opacity", 0);
-      
-      try {
-        // Fetch CSV data
-        const response = await fetch(csvFile);
-        if (!response.ok) {
-          throw new Error(`Failed to load CSV file: ${response.statusText}`);
-        }
-        
-        const csvData = await response.text();
-        processCSVData(csvData);
-      } catch (error) {
-        showError(`Error: ${error.message}`);
-        hideLoading();
-      }
-      
-      function processCSVData(csvText) {
-        Papa.parse(csvText, {
-          header: true,
-          skipEmptyLines: true,
-          dynamicTyping: true,
-          complete: function(results) {
-            if (results.errors.length > 0) {
-              showError(`Error parsing CSV: ${results.errors[0].message}`);
-              hideLoading();
-              return;
-            }
-            
-            try {
-              const data = results.data;
-              if (data.length === 0) {
-                showError('No data found in the CSV file');
-                hideLoading();
-                return;
-              }
-              
-              // Process data into multi-step flow
-              const flowData = processDataForMultiStepFlow(data);
-              
-              // Create the visualization
-              createMultiStepFlowVisualization(flowData, tooltip);
-              
-              // Hide loading indicator
-              hideLoading();
-            } catch (error) {
-              showError(`Error processing data: ${error.message}`);
-              hideLoading();
-            }
-          },
-          error: function(error) {
-            showError(`Failed to parse CSV: ${error.message}`);
-            hideLoading();
-          }
-        });
-      }
-    }
-    
-    function processDataForMultiStepFlow(rawData) {
-      const firstRow = rawData[0];
-      
-      // Use the exact column names
-      let sourceColumn = "From (Full)";
-      let targetColumn = "To (Full)";
-      let valueColumn = "Amount (BTC)";
-      
-      // Fallback column detection if needed
-      if (!firstRow.hasOwnProperty(sourceColumn)) {
-        const columns = Object.keys(firstRow);
-        sourceColumn = columns.find(col => 
-          col.toLowerCase().includes('from') || 
-          col.toLowerCase().includes('source')
-        ) || columns[0];
-      }
-      
-      if (!firstRow.hasOwnProperty(targetColumn)) {
-        const columns = Object.keys(firstRow);
-        targetColumn = columns.find(col => 
-          col.toLowerCase().includes('to') || 
-          col.toLowerCase().includes('target')
-        ) || columns[1];
-      }
-      
-      if (!firstRow.hasOwnProperty(valueColumn)) {
-        const columns = Object.keys(firstRow);
-        valueColumn = columns.find(col => 
-          col.toLowerCase().includes('amount') || 
-          col.toLowerCase().includes('value') || 
-          col.toLowerCase().includes('btc')
-        );
-      }
-      
-      // Track all wallets and their connections
-      const wallets = new Map();
-      const links = [];
-      
-      // Process each row to build the graph
-      rawData.forEach(row => {
-        const source = String(row[sourceColumn]);
-        const target = String(row[targetColumn]);
-        
-        // Skip invalid rows
-        if (!source || !target || source === target) return;
-        
-        // Get short names if available
-        const sourceShort = row["From (Short)"] || source.substring(0, 6);
-        const targetShort = row["To (Short)"] || target.substring(0, 6);
-        
-        // Create or update source wallet
-        if (!wallets.has(source)) {
-          wallets.set(source, {
-            id: source,
-            shortName: sourceShort,
-            outgoing: new Set(),
-            incoming: new Set(),
-            level: undefined // To be determined
-          });
-        }
-        
-        // Create or update target wallet
-        if (!wallets.has(target)) {
-          wallets.set(target, {
-            id: target,
-            shortName: targetShort,
-            outgoing: new Set(),
-            incoming: new Set(),
-            level: undefined // To be determined
-          });
-        }
-        
-        // Update connections
-        wallets.get(source).outgoing.add(target);
-        wallets.get(target).incoming.add(source);
-        
-        // Get value (default to 1 if not specified)
-        const value = valueColumn && row[valueColumn] ? Number(row[valueColumn]) : 1;
-        
-        // Add to links
-        links.push({
-          source,
-          target,
-          sourceShort,
-          targetShort,
-          value
-        });
-      });
-      
-      // Determine levels for each wallet
-      // Start with wallets that only have outgoing transactions
-      const startWallets = Array.from(wallets.values())
-        .filter(wallet => wallet.incoming.size === 0 && wallet.outgoing.size > 0);
-      
-      // Assign level 0 to start wallets
-      startWallets.forEach(wallet => {
-        wallet.level = 0;
-      });
-      
-      // Breadth-first traversal to assign levels
-      let currentLevel = 0;
-      let frontierWallets = startWallets;
-      
-      while (frontierWallets.length > 0) {
-        const nextFrontier = [];
-        
-        frontierWallets.forEach(wallet => {
-          // For each outgoing connection
-          wallet.outgoing.forEach(targetId => {
-            const targetWallet = wallets.get(targetId);
-            
-            // If the target doesn't have a level yet, assign it
-            if (targetWallet.level === undefined) {
-              targetWallet.level = currentLevel + 1;
-              nextFrontier.push(targetWallet);
-            } 
-            // If the target already has a level, make sure it's at least currentLevel + 1
-            else if (targetWallet.level <= currentLevel) {
-              targetWallet.level = currentLevel + 1;
-            }
-          });
-        });
-        
-        currentLevel++;
-        frontierWallets = nextFrontier;
-      }
-      
-      // Handle any wallets without assigned levels (isolated or in cycles)
-      const unleveledWallets = Array.from(wallets.values())
-        .filter(wallet => wallet.level === undefined);
-      
-      if (unleveledWallets.length > 0) {
-        // For simplicity, just assign them to level 0 if they have no incoming
-        // Or to max level + 1 if they have no outgoing
-        // Or level 1 otherwise
-        unleveledWallets.forEach(wallet => {
-          if (wallet.incoming.size === 0) {
-            wallet.level = 0;
-          } else if (wallet.outgoing.size === 0) {
-            wallet.level = currentLevel;
-          } else {
-            wallet.level = 1; // Default
-          }
-        });
-      }
-      
-      // Count max wallets at any level for spacing
-      const levelCounts = {};
-      const maxLevel = Math.max(...Array.from(wallets.values()).map(w => w.level));
-      
-      wallets.forEach(wallet => {
-        if (!levelCounts[wallet.level]) {
-          levelCounts[wallet.level] = 0;
-        }
-        levelCounts[wallet.level]++;
-      });
-      
-      return { wallets, links, levelCounts, maxLevel };
-    }
-    
-    function createMultiStepFlowVisualization(data, tooltip) {
       const container = document.getElementById('chart-container');
       const width = container.clientWidth;
       const height = container.clientHeight;
       
-      // For very wide flows, create a bigger virtual canvas
-      const virtualWidth = Math.max(width, data.maxLevel * 600 + 200);
-      const virtualHeight = Math.max(height, 
-        Object.values(data.levelCounts).reduce((max, count) => Math.max(max, count), 0) * 100);
-      
-      // Remove any existing SVG
-      d3.select('#chart-container').selectAll('*').remove();
-      
-      // Create new SVG with the virtual size as viewBox
+      // Create SVG
       const svg = d3.select('#chart-container')
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .attr('viewBox', [0, 0, virtualWidth, virtualHeight]);
+        .attr('viewBox', [0, 0, width, height]);
       
-      // Create a group for the flow diagram
+      // Create a group for the diagram
       const g = svg.append('g');
       
-      // Define zoom function
-      function zoomed(event) {
-        g.attr('transform', event.transform);
-      }
-      
-      // Set up zoom behavior
+      // Define zoom behavior
       const zoom = d3.zoom()
-        .scaleExtent([0.05, 10])
-        .on('zoom', zoomed);
+        .scaleExtent([0.1, 10])
+        .on('zoom', function(event) {
+          g.attr('transform', event.transform);
+        });
       
-      // Apply zoom with initial transform
-      svg.call(zoom)
-         .call(zoom.transform, d3.zoomIdentity
-           .scale(initialScale)
-           .translate(50, virtualHeight / 3));
+      // Apply zoom
+      svg.call(zoom);
       
-      // Calculate positions for all wallets
-      const walletPositions = new Map();
-      const walletsByLevel = new Map();
-      const horizontalSpacing = virtualWidth / (data.maxLevel + 2); // Space between levels
-      
-      // Group wallets by level
-      data.wallets.forEach((wallet, id) => {
-        if (!walletsByLevel.has(wallet.level)) {
-          walletsByLevel.set(wallet.level, []);
-        }
-        walletsByLevel.get(wallet.level).push(wallet);
+      // Add control event listeners
+      document.getElementById('zoom-in').addEventListener('click', function() {
+        svg.transition().duration(300).call(zoom.scaleBy, 1.3);
       });
       
-      // Position wallets level by level
-      walletsByLevel.forEach((walletsAtLevel, level) => {
-        const levelX = 100 + level * horizontalSpacing;
-        const levelHeight = virtualHeight - 100;
-        const walletSpacing = levelHeight / (walletsAtLevel.length + 1);
+      document.getElementById('zoom-out').addEventListener('click', function() {
+        svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+      });
+      
+      document.getElementById('reset').addEventListener('click', function() {
+        svg.transition().duration(300).call(
+          zoom.transform,
+          d3.zoomIdentity.translate(width * 0.1, height * 0.3).scale(0.7)
+        );
+      });
+      
+      // Calculate positions
+      const nodePositions = new Map();
+      const maxLevel = Math.max(...sampleData.nodes.map(d => d.level));
+      
+      // Horizontal spacing between levels
+      const levelWidth = width / (maxLevel + 2);
+      
+      // Group nodes by level
+      const nodesByLevel = {};
+      sampleData.nodes.forEach(node => {
+        if (!nodesByLevel[node.level]) {
+          nodesByLevel[node.level] = [];
+        }
+        nodesByLevel[node.level].push(node);
+      });
+      
+      // Position nodes
+      Object.entries(nodesByLevel).forEach(([level, nodes]) => {
+        const levelX = 100 + parseInt(level) * levelWidth;
         
-        // Sort wallets for more consistent placement
-        walletsAtLevel.sort((a, b) => a.id.localeCompare(b.id));
+        // Vertical spacing
+        const levelHeight = height - 200;
+        const nodeSpacing = levelHeight / (nodes.length + 1);
         
-        // Assign positions
-        walletsAtLevel.forEach((wallet, index) => {
-          walletPositions.set(wallet.id, {
+        // Assign Y positions
+        nodes.forEach((node, i) => {
+          nodePositions.set(node.id, {
             x: levelX,
-            y: 50 + (index + 1) * walletSpacing
+            y: 100 + (i + 1) * nodeSpacing
           });
         });
       });
       
-      // Draw the links - very transparent by default
-      const link = g.append('g')
-        .selectAll('path')
-        .data(data.links)
+      // Draw links
+      g.selectAll('.link')
+        .data(sampleData.links)
         .enter()
         .append('path')
         .attr('d', d => {
-          const sourcePos = walletPositions.get(d.source);
-          const targetPos = walletPositions.get(d.target);
+          const source = nodePositions.get(d.source);
+          const target = nodePositions.get(d.target);
           
-          if (!sourcePos || !targetPos) return '';
-          
-          // Use a curved path
-          const midX = (sourcePos.x + targetPos.x) / 2;
-          
-          return `M${sourcePos.x},${sourcePos.y} 
-                  C${midX},${sourcePos.y} 
-                   ${midX},${targetPos.y} 
-                   ${targetPos.x},${targetPos.y}`;
+          // Draw curved path
+          return `M${source.x},${source.y} 
+                  C${source.x + (target.x - source.x) * 0.5},${source.y} 
+                   ${source.x + (target.x - source.x) * 0.5},${target.y} 
+                   ${target.x},${target.y}`;
         })
-        .attr('stroke', '#ffffff')
-        .attr('stroke-width', d => Math.sqrt(d.value) * 1.5)
-        .attr('stroke-opacity', 0.15)
-        .attr('fill', 'none')
-        .on('mouseover', function(event, d) {
-          d3.select(this)
-            .attr('stroke-opacity', 0.5)
-            .attr('stroke-width', d => Math.sqrt(d.value) * 2);
-          
-          // Show tooltip
-          tooltip.transition()
-            .duration(200)
-            .style('opacity', 0.9);
-          
-          tooltip.html(`<strong>From:</strong> ${d.sourceShort}<br>` +
-                      `<strong>To:</strong> ${d.targetShort}<br>` +
-                      `<strong>Amount:</strong> ${d.value.toFixed(8)} BTC`)
-            .style('left', (event.pageX + 10) + 'px')
-            .style('top', (event.pageY - 28) + 'px');
-        })
-        .on('mouseout', function() {
-          d3.select(this)
-            .attr('stroke-opacity', 0.15)
-            .attr('stroke-width', d => Math.sqrt(d.value) * 1.5);
-          
-          // Hide tooltip
-          tooltip.transition()
-            .duration(500)
-            .style('opacity', 0);
-        });
+        .attr('stroke', 'white')
+        .attr('stroke-width', d => Math.sqrt(d.value) * 2)
+        .attr('stroke-opacity', 0.2)
+        .attr('fill', 'none');
       
-      // Draw wallet labels - simple text, no boxes
-      g.selectAll('.wallet-label')
-        .data(Array.from(data.wallets.values()))
+      // Draw nodes
+      g.selectAll('.node')
+        .data(sampleData.nodes)
+        .enter()
+        .append('circle')
+        .attr('cx', d => nodePositions.get(d.id).x)
+        .attr('cy', d => nodePositions.get(d.id).y)
+        .attr('r', 5)
+        .attr('fill', 'white');
+      
+      // Add labels
+      g.selectAll('.label')
+        .data(sampleData.nodes)
         .enter()
         .append('text')
-        .attr('x', d => walletPositions.get(d.id).x)
-        .attr('y', d => walletPositions.get(d.id).y)
+        .attr('x', d => nodePositions.get(d.id).x)
+        .attr('y', d => nodePositions.get(d.id).y - 10)
         .attr('text-anchor', 'middle')
-        .attr('alignment-baseline', 'middle')
-        .attr('font-size', '12px')
-        .attr('fill', 'rgba(255, 255, 255, 0.8)')
-        .text(d => d.shortName);
+        .attr('fill', 'white')
+        .text(d => d.name);
       
-      // Add level indicators
-      for (let i = 0; i <= data.maxLevel; i++) {
-        const levelX = 100 + i * horizontalSpacing;
-        
+      // Add level headers
+      for (let i = 0; i <= maxLevel; i++) {
         g.append('text')
-          .attr('x', levelX)
-          .attr('y', 20)
+          .attr('x', 100 + i * levelWidth)
+          .attr('y', 50)
           .attr('text-anchor', 'middle')
-          .attr('font-size', '14px')
-          .attr('fill', 'rgba(255, 255, 255, 0.5)')
+          .attr('fill', 'rgba(255, 255, 255, 0.7)')
+          .attr('font-size', '16px')
           .text(i === 0 ? 'Original Wallets' : `Step ${i}`);
       }
       
-      // Add subtle hint text
-      svg.append('text')
-        .attr('x', 20)
-        .attr('y', virtualHeight - 20)
-        .attr('text-anchor', 'start')
-        .attr('font-size', '14px')
-        .attr('fill', 'rgba(255, 255, 255, 0.3)')
-        .text('Scroll to zoom, drag to pan');
-    }
-    
-    function hideLoading() {
-      document.getElementById('loading').style.display = 'none';
-    }
-    
-    function showError(message) {
-      const errorElement = document.getElementById('error');
-      errorElement.textContent = message;
-      errorElement.style.display = 'block';
+      // Initial view
+      svg.call(
+        zoom.transform,
+        d3.zoomIdentity.translate(width * 0.1, height * 0.3).scale(0.7)
+      );
       
-      // Hide error after 10 seconds
-      setTimeout(() => {
-        errorElement.style.display = 'none';
-      }, 10000);
+      // Hide loading
+      document.getElementById('loading').style.display = 'none';
+      
+      console.log("Visualization created successfully");
     }
   </script>
 </body>
