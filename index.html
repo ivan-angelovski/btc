@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Flow - Final Version</title>
+  <title>Bitcoin Flow - Maximum Horizontal Spread</title>
   <style>
     html, body {
       margin: 0;
@@ -442,12 +442,15 @@
       const relevantLevels = Object.keys(walletsByLevel).map(Number).sort((a, b) => a - b);
       const distinctLevels = relevantLevels.length;
       
-      // EXTREMELY LARGE virtual canvas for maximum spreading
-      const virtualWidth = Math.max(width * 10, distinctLevels * 3000);
-      const maxWalletsInAnyLevel = Math.max(...Object.values(walletsByLevel).map(w => w.length));
-      const virtualHeight = Math.max(height * 10, maxWalletsInAnyLevel * 300);
+      // EXTREMELY MASSIVE horizontal spread
+      const virtualWidth = Math.max(width * 50, distinctLevels * 10000); // Massive horizontal spacing
       
-      // Assign positions to wallets with EXTREME spacing
+      // More consistent vertical spacing
+      const verticalPadding = 80; // Consistent vertical padding between wallets
+      const maxNodesInAnyLevel = Math.max(...Object.values(walletsByLevel).map(w => w.length));
+      const virtualHeight = Math.max(height * 2, maxNodesInAnyLevel * verticalPadding);
+      
+      // Assign positions with MASSIVE horizontal spacing
       const walletPositions = {};
       const horizontalPadding = 500; // Space from edges
       const availableWidth = virtualWidth - (horizontalPadding * 2);
@@ -457,13 +460,15 @@
       relevantLevels.forEach((level, index) => {
         const walletsInLevel = walletsByLevel[level];
         const levelX = horizontalPadding + index * horizontalSpacing;
-        const levelHeight = virtualHeight - (horizontalPadding * 2);
-        const rowSpacing = levelHeight / (walletsInLevel.length + 1);
         
+        // Adjust vertical layout to be more consistent
+        const totalVerticalSpace = virtualHeight - (horizontalPadding * 2);
+        
+        // Distribute nodes evenly
         walletsInLevel.forEach((wallet, i) => {
           walletPositions[wallet.id] = {
             x: levelX,
-            y: horizontalPadding + (i + 1) * rowSpacing
+            y: horizontalPadding + (totalVerticalSpace * (i + 0.5) / walletsInLevel.length)
           };
         });
       });
@@ -530,7 +535,7 @@
         .duration(300)
         .call(
           zoom.transform,
-          d3.zoomIdentity.scale(0.05).translate(width/2, height/2)
+          d3.zoomIdentity.scale(0.02).translate(width/2, height/2)
         );
     }
     
